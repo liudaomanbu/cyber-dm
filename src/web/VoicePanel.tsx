@@ -83,7 +83,7 @@ export function VoicePanel({sessionId,target,roles,onTarget,api,onUpdate,onError
     if(msg.type==='error'){onError(msg.message);setStatus('语音发生错误');}
    };
    ws.onerror=()=>{if(socket.current!==ws)return;onError('语音连接失败，请检查网络、HTTPS/WSS 地址与灵矽配置');setStatus('语音连接失败');};
-   ws.onclose=()=>{if(socket.current!==ws)return;socket.current=null;rec.current=false;connecting.current=false;stream.current?.getTracks().forEach(track=>track.stop());stream.current=null;node.current?.disconnect();node.current=null;stopPlayback();if(mounted.current){setReady(false);setRecording(false);setStatus('连接已断开，点击重新连接');}};
+   ws.onclose=()=>{if(socket.current!==ws)return;socket.current=null;rec.current=false;connecting.current=false;stream.current?.getTracks().forEach(track=>track.stop());stream.current=null;node.current?.disconnect();node.current=null;stopPlayback();if(mounted.current){setReady(false);setRecording(false);setInputLevel(0);setStatus('连接已断开，点击重新连接');}};
   }catch(e){disconnect();const error=e as Error;onError(error.name==='NotAllowedError'?'麦克风权限被拒绝，请在浏览器设置中允许此站点使用麦克风':error.name==='NotFoundError'?'未找到可用麦克风，请检查手机权限与蓝牙设备':error.message);}
  };
 
