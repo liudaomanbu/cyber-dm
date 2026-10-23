@@ -46,6 +46,9 @@ app.addHook('onRequest',async(req,reply)=>{
 });
 app.setErrorHandler((error,_req,reply)=>{const e=error as Error;reply.code(e instanceof game.RuleError||e instanceof z.ZodError?400:500).send({error:e.message});});
 app.get('/api/bootstrap',async()=>({key:key.value}));
+// Public, secret-free probe for Caddy and external uptime checks. The host
+// guard still applies, so it cannot be used to bypass deployment allowlists.
+app.get('/healthz',async()=>({ok:true,service:'cyber-dm'}));
 app.get('/api/config',async()=>publicConfig(config));
 app.get('/api/readiness',async()=>readiness(config,scripts));
 app.put('/api/config',async req=>{const next=mergeSecrets(configSchema.parse(req.body),config);await save('config',next);config=next;return publicConfig(config);});

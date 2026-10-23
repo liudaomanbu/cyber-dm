@@ -26,6 +26,7 @@ npm start
 
 ```sh
 curl -I https://cyber-dm.caotc.org/
+curl -fsS https://cyber-dm.caotc.org/healthz
 ```
 
 在网页“连接与声音”填写模型和灵矽凭证，再把灵矽第三方业务回调设置为：
