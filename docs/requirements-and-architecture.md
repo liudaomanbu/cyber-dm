@@ -146,7 +146,7 @@ LLM、ASR、TTS、VoiceClone、Image 分别有适配接口。任意文本模型�
 | 所有 SSE 响应要求原样返回 session_id | 外部会话与内部 game_session 映射，不能把它当作角色身份 |
 | 音色切换保留当前上下文 | 不能用换音色模拟角色记忆隔离 |
 | WebSocket 支持 PCM／Opus、STT、TTS、abort | 可实现语音输入、播放及打断；按实际握手参数配置 |
-| 克隆 API 通过音频 URL 训练，有 Init／Training／Success／Failed | 异步任务，Success 后才能绑定，不承诺上传即可立即使用 |
+| 克隆 API 通过音频 URL 训练，有 Init／Training／Success／Failed，并返回音色 ID | 异步任务，只有 Success 后才能绑定返回的音色 ID，不承诺上传即可立即使用 |
 | 克隆文档建议清晰的 20–30 秒音频，训练几分钟到十几分钟 | 首版默认声音可先用，克隆任务独立执行 |
 
 业务服务拟提供 `/integrations/linx/chat/stream`；请求含 auth.device_id、type、details.msg、details.session_id。检查回调鉴权及已绑定设备，不能信任任意 device_id 即给予房间权限。消息按房间串行处理，防止重复请求和并发阶段提交。
