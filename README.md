@@ -45,6 +45,8 @@ npm run build
 
 详细目标、预算、时间、技术边界与验收条件见 [需求与架构](docs/requirements-and-architecture.md)。
 
+有域名时的 HTTPS 子域名、Caddy 反代、灵矽回调和真机验收步骤见 [HTTPS 部署](docs/deployment.md)。
+
 ## 灵矽联调准备
 
 在“连接与声音”填写灵矽 API Key、WebSocket Token、Device ID、Client ID、Agent ID 与业务回调 Token，并为 DM 和所有 AI 角色设置 TTS provider / voice_type。平台的第三方业务服务应指向：
