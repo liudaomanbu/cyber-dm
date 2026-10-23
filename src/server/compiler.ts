@@ -44,6 +44,7 @@ export async function compile(filename:string,bytes:Buffer,provider:Provider):Pr
  const script=parseScript(raw);
   const warnings=verifySources(script,source,true);
  warnings.push('必须核对角色知情范围、阶段解锁、主持引导与结局；原文引用存在不等于语义与权限正确。');
+ if(/^# OCR 草稿\b/m.test(source))warnings.push('这是 OCR 草稿：请逐页对照原 PDF，修正识别错误后再发布，OCR 文字不能单独证明事实。');
  if(!script.roles.every(r=>script.utterances.some(u=>u.roleId===r.id)))warnings.push('部分角色缺少可用台词；发布前需补充原文支持的内容。');
  return {id:randomUUID(),filename,source,sourceMode:'uploaded',script,warnings,createdAt:new Date().toISOString()};
 }
