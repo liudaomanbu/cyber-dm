@@ -74,11 +74,11 @@ app.post('/api/scripts/generate',async req=>{
  const draft=await generateDraft(body.prompt,provider);drafts[draft.id]=draft;await save('drafts',drafts);return {draftId:draft.id};
 });
 app.get('/api/drafts',async()=>Object.values(drafts));
-app.put('/api/drafts/:id',async req=>{const d=drafts[(req.params as any).id];if(!d)throw new game.RuleError('草稿不存在');d.script=parseScript(req.body);d.warnings=d.sourceMode==='generated'?['这是AI生成草稿，发布前必须人工核对。']:verifySources(d.script,d.source);await save('drafts',drafts);return d;});
+app.put('/api/drafts/:id',async req=>{const d=drafts[(req.params as any).id];if(!d)throw new game.RuleError('草稿不存在');d.script=parseScript(req.body);d.warnings=d.sourceMode==='generated'?['这是AI生成草稿，发布前必须人工核对。']:verifySources(d.script,d.source,true);await save('drafts',drafts);return d;});
 app.post('/api/drafts/:id/publish',async req=>{
  const d=drafts[(req.params as any).id];if(!d)throw new game.RuleError('草稿不存在');
  if((req.body as any)?.reviewed!==true)throw new game.RuleError('请先核对原文和角色权限');
- const issues=d.sourceMode==='generated'?[]:verifySources(d.script,d.source);if(issues.length)throw new game.RuleError(issues.join('；'));
+ const issues=d.sourceMode==='generated'?[]:verifySources(d.script,d.source,true);if(issues.length)throw new game.RuleError(issues.join('；'));
  const s=parseScript(d.script);s.id=createHash('sha256').update(JSON.stringify(s)).digest('hex').slice(0,24);scripts[s.id]=s;await save('scripts',scripts);delete drafts[d.id];await save('drafts',drafts);return {id:s.id};
 });
 app.post('/api/sessions',async req=>{const body=z.object({scriptId:z.string(),roleId:z.string()}).parse(req.body);const script=scripts[body.scriptId];if(!script)throw new game.RuleError('剧本不存在');const s=game.createSession(script,body.roleId);sessions[s.id]=s;await save('sessions',sessions);return game.playerView(s,script);});

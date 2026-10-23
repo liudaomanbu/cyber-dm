@@ -11,6 +11,13 @@ test('source checking rejects fabricated quotations without granting semantic ap
  const edited=structuredClone(script);edited.facts[0].source.quote='原文没有出现的保险柜';
  assert(verifySources(edited,quotes).some(x=>x.includes('lin_where')));
 });
+
+test('uploaded drafts require citations for structural story content',()=>{
+ const quotes=[...script.facts,...script.utterances].map(x=>x.source.quote).join('\n');
+ const issues=verifySources(script,quotes,true);
+ assert(issues.some(x=>x.includes('lin 缺少原文引用')));
+ assert(issues.some(x=>x.includes('solution 缺少原文引用')));
+});
 test('UTF-8 text extraction keeps full document and rejects unsupported content',async()=>{
  const text='角色本\n第一幕：闭馆之后';assert.equal(await extractText('test.md',Buffer.from(text)),text);
  await assert.rejects(extractText('test.exe',Buffer.from(text)));

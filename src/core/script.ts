@@ -4,13 +4,13 @@ const id = z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/);
 const source = z.object({document:z.string().min(1), locator:z.string().min(1), quote:z.string().min(1)});
 export const scriptSchema = z.object({
   schemaVersion:z.literal(1), id, title:z.string().min(1), introduction:z.string().min(1),
-  roles:z.array(z.object({id,name:z.string().min(1),description:z.string(),voiceHint:z.string()})).min(2).max(12),
-  stages:z.array(z.object({id,title:z.string(),introduction:z.string(),kind:z.enum(['discussion','investigation','vote','reveal'])})).min(2),
+  roles:z.array(z.object({id,name:z.string().min(1),description:z.string(),voiceHint:z.string(),source:source.optional()})).min(2).max(12),
+  stages:z.array(z.object({id,title:z.string(),introduction:z.string(),kind:z.enum(['discussion','investigation','vote','reveal']),source:source.optional()})).min(2),
   facts:z.array(z.object({id,text:z.string().min(1),knownBy:z.array(id),unlockStage:id,source})),
-  clues:z.array(z.object({id,title:z.string(),factId:id,unlockStage:id,discoverableBy:z.array(id)})),
+  clues:z.array(z.object({id,title:z.string(),factId:id,unlockStage:id,discoverableBy:z.array(id),source:source.optional()})),
   utterances:z.array(z.object({id,roleId:id,stageIds:z.array(id).min(1),text:z.string().min(1),
     factIds:z.array(id),audience:z.enum(['public','private']),kind:z.enum(['statement','scripted_lie','question','fallback']),source})),
-  solution:z.object({culpritRoleId:id,explanation:z.string().min(1),factIds:z.array(id).min(1)}),
+  solution:z.object({culpritRoleId:id,explanation:z.string().min(1),factIds:z.array(id).min(1),source:source.optional()}),
 });
 export type Script = z.infer<typeof scriptSchema>;
 
