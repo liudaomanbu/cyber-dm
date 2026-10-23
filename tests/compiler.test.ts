@@ -15,6 +15,8 @@ test('source checking rejects fabricated quotations without granting semantic ap
 test('uploaded drafts require citations for structural story content',()=>{
  const quotes=[...script.facts,...script.utterances].map(x=>x.source.quote).join('\n');
  const issues=verifySources(script,quotes,true);
+ assert(issues.some(x=>x.includes('title 缺少原文引用')));
+ assert(issues.some(x=>x.includes('introduction 缺少原文引用')));
  assert(issues.some(x=>x.includes('lin 缺少原文引用')));
  assert(issues.some(x=>x.includes('solution 缺少原文引用')));
 });

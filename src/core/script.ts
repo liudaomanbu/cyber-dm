@@ -4,6 +4,7 @@ const id = z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/);
 const source = z.object({document:z.string().min(1), locator:z.string().min(1), quote:z.string().min(1)});
 export const scriptSchema = z.object({
   schemaVersion:z.literal(1), id, title:z.string().min(1), introduction:z.string().min(1),
+  titleSource:source.optional(), introductionSource:source.optional(),
   roles:z.array(z.object({id,name:z.string().min(1),description:z.string(),voiceHint:z.string(),source:source.optional()})).min(2).max(12),
   stages:z.array(z.object({id,title:z.string(),introduction:z.string(),kind:z.enum(['discussion','investigation','vote','reveal']),source:source.optional()})).min(2),
   facts:z.array(z.object({id,text:z.string().min(1),knownBy:z.array(id),unlockStage:id,source})),
