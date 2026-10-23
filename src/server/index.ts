@@ -15,6 +15,7 @@ import { registerLinxApi } from './linx-api.js';
 import { GameService,actionSchema } from './game-service.js';
 import { bindingKey } from '../core/bindings.js';
 import { registerVoice } from './voice.js';
+import { readiness } from './readiness.js';
 
 const app=Fastify({logger:{serializers:{req:req=>({method:req.method,url:req.url?.split('?')[0]?.replace(/(\/voice-samples\/[^/]+)\/.*/, '$1/[redacted]')})}},bodyLimit:2*1024*1024});
 await registerAccess(app,{accessCode:process.env.CYBER_DM_ACCESS_CODE,publicOrigin:process.env.CYBER_DM_PUBLIC_ORIGIN});
@@ -42,6 +43,7 @@ app.addHook('onRequest',async(req,reply)=>{
 app.setErrorHandler((error,_req,reply)=>{const e=error as Error;reply.code(e instanceof game.RuleError||e instanceof z.ZodError?400:500).send({error:e.message});});
 app.get('/api/bootstrap',async()=>({key:key.value}));
 app.get('/api/config',async()=>publicConfig(config));
+app.get('/api/readiness',async()=>readiness(config,scripts));
 app.put('/api/config',async req=>{const next=mergeSecrets(configSchema.parse(req.body),config);await save('config',next);config=next;return publicConfig(config);});
 app.post('/api/providers/:id/test',async req=>{
  const p=config.providers.find(p=>p.id===(req.params as any).id);if(!p)throw new game.RuleError('服务配置不存在');
