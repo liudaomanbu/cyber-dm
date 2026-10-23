@@ -9,7 +9,7 @@ import { parseScript, type Script } from '../core/script.js';
 import * as game from '../core/engine.js';
 import { configSchema,defaultConfig,load,save,publicConfig,mergeSecrets,type Config } from './store.js';
 import { generate } from './models.js';
-import { compile,generateDraft,verifySources,type Draft } from './compiler.js';
+import { compile,generateDraft,modifyDraft,verifySources,type Draft } from './compiler.js';
 import { registerAccess } from './auth.js';
 import { registerLinxApi } from './linx-api.js';
 import { GameService,actionSchema } from './game-service.js';
@@ -72,6 +72,13 @@ app.post('/api/scripts/generate',async req=>{
  const provider=config.providers.find(p=>p.id===(body.providerId??config.compilerProviderId));
  if(!provider)throw new game.RuleError('请先配置并选择生成模型');
  const draft=await generateDraft(body.prompt,provider);drafts[draft.id]=draft;await save('drafts',drafts);return {draftId:draft.id};
+});
+app.post('/api/scripts/:id/modify',async req=>{
+ const script=scripts[(req.params as any).id];if(!script)throw new game.RuleError('剧本不存在');
+ const body=z.object({prompt:z.string(),providerId:z.string().optional()}).parse(req.body);
+ const provider=config.providers.find(p=>p.id===(body.providerId??config.compilerProviderId));
+ if(!provider)throw new game.RuleError('请先配置并选择修改模型');
+ const draft=await modifyDraft(script,body.prompt,provider);drafts[draft.id]=draft;await save('drafts',drafts);return {draftId:draft.id};
 });
 app.get('/api/drafts',async()=>Object.values(drafts));
 app.put('/api/drafts/:id',async req=>{const d=drafts[(req.params as any).id];if(!d)throw new game.RuleError('草稿不存在');d.script=parseScript(req.body);d.warnings=d.sourceMode==='generated'?['这是AI生成草稿，发布前必须人工核对。']:verifySources(d.script,d.source,true);await save('drafts',drafts);return d;});

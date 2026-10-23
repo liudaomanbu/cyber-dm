@@ -64,3 +64,22 @@ export async function generateDraft(prompt:string,provider:Provider):Promise<Dra
  if(!script.roles.every(r=>script.utterances.some(u=>u.roleId===r.id)))warnings.push('部分角色缺少可用台词；发布前需补充。');
  return {id:randomUUID(),filename:`AI原创-${script.title}.json`,source:`用户生成要求：\n${brief}`,sourceMode:'generated',script,warnings,createdAt:new Date().toISOString()};
 }
+
+/** Create a new reviewable version from an existing script and an explicit
+ * author instruction. The running version is never mutated by this flow. */
+export async function modifyDraft(original:Script,instruction:string,provider:Provider):Promise<Draft>{
+ const brief=instruction.trim();
+ if(brief.length<8)throw new Error('修改要求至少需要 8 个字符');
+ if(brief.length>6000)throw new Error('修改要求最多 6000 个字符');
+ const schema=z.toJSONSchema(scriptSchema);
+ const result=await generate(provider,
+  '你是严格的剧本改编器。根据原剧本和作者修改要求输出完整的新剧本 JSON，只输出符合 schema 的 JSON。只执行作者明确要求的改动；未要求的角色、事实、线索、阶段、台词和结局保持原意。不得引入外部事实，不得删掉使线索、角色权限或结局失效的内容；若要求会破坏公平推理或 schema，返回 {"error":"无法安全修改：说明原因"}。输出是待人工审核的新草稿，不会自动发布。',
+  {schema,instruction:brief,original},16000);
+ const raw=parseJson(result.text);
+ if(raw&&typeof raw==='object'&&'error' in raw)throw new Error(String(raw.error));
+ const script=parseScript(raw);
+ return {id:randomUUID(),filename:`修改-${script.title}.json`,source:`原剧本：${original.title}\n用户修改要求：\n${brief}`,sourceMode:'generated',script,warnings:[
+  '这是根据已有剧本修改生成的新版本；发布前必须核对事实、角色权限、阶段解锁、台词与结局。',
+  '原进行中的房间仍绑定旧版本，新版本审核发布后才可用于新房间。',
+ ],createdAt:new Date().toISOString()};
+}
