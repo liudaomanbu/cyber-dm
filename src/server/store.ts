@@ -4,10 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 export const dataDir=resolve(process.env.CYBER_DM_DATA_DIR??'.data');
 const profile=z.object({id:z.string().min(1).max(100),name:z.string().min(1),protocol:z.enum(['chat-completions','anthropic','responses']),baseUrl:z.url(),modelId:z.string().min(1),apiKey:z.string(),timeoutMs:z.number().int().min(1000).max(120000).default(30000)});
-export const configSchema=z.object({providers:z.array(profile).max(30),compilerProviderId:z.string().default(''),roleModels:z.record(z.string(),z.string()),roleVoices:z.record(z.string(),z.object({provider:z.string(),voiceType:z.string()})),linx:z.object({apiKey:z.string(),wsUrl:z.url(),wsToken:z.string(),deviceId:z.string(),clientId:z.string(),agentId:z.string(),callbackToken:z.string()})});
+export const configSchema=z.object({providers:z.array(profile).max(30),compilerProviderId:z.string().default(''),roleModels:z.record(z.string(),z.string()),roleVoices:z.record(z.string(),z.object({provider:z.string(),voiceType:z.string(),voiceId:z.string().optional()})),linx:z.object({publicBaseUrl:z.string().default(''),apiKey:z.string(),wsUrl:z.url(),wsToken:z.string(),deviceId:z.string(),clientId:z.string(),agentId:z.string(),callbackToken:z.string()})});
 export type Config=z.infer<typeof configSchema>;
 export type Provider=z.infer<typeof profile>;
-export const defaultConfig:Config={providers:[],compilerProviderId:'',roleModels:{},roleVoices:{},linx:{apiKey:'',wsUrl:'wss://xrobo-io.qiniuapi.com/v1/ws/',wsToken:'',deviceId:'',clientId:randomUUID(),agentId:'',callbackToken:''}};
+export const defaultConfig:Config={providers:[],compilerProviderId:'',roleModels:{},roleVoices:{},linx:{publicBaseUrl:'',apiKey:'',wsUrl:'wss://xrobo-io.qiniuapi.com/v1/ws/',wsToken:'',deviceId:'',clientId:randomUUID(),agentId:'',callbackToken:''}};
 export async function load<T>(key:string,fallback:T):Promise<T>{try{return JSON.parse(await readFile(resolve(dataDir,key+'.json'),'utf8'));}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return fallback;throw e;}}
 export async function save(key:string,data:unknown){await mkdir(dataDir,{recursive:true,mode:0o700});const file=resolve(dataDir,key+'.json'),tmp=file+'.'+randomUUID()+'.tmp';await writeFile(tmp,JSON.stringify(data,null,2),{mode:0o600});await rename(tmp,file);}
 export const MASK='••••••••';
