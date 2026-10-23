@@ -118,8 +118,9 @@ export async function registerLinxApi(app: FastifyInstance, options: {
     const config = options.getConfig();
     const bindings = { ...config.roleVoices };
     for (const [roleId, voice] of Object.entries(selected)) {
-      // Keep the catalog id and callback voice_type as separate values. A
-      // catalog can expose one without the other and still needs manual setup.
+      // The documented native WebSocket path uses this catalog id directly.
+      // Keep legacy callback fields when a catalog version supplies them, but
+      // do not require undocumented provider/voice_type mappings.
       bindings[bindingKey(script.id, roleId)] = {
         voiceId: voice.id,
         provider: voice.provider ?? '',
@@ -130,7 +131,7 @@ export async function registerLinxApi(app: FastifyInstance, options: {
     const assignedKeys = Object.keys(selected).map((roleId) => bindingKey(script.id, roleId));
     return {
       selected,
-      needsMapping: assignedKeys.filter((key) => !bindings[key].provider || !bindings[key].voiceType),
+      needsMapping: assignedKeys.filter((key) => !bindings[key].voiceId),
     };
   });
 

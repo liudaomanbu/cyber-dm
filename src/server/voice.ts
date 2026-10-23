@@ -7,12 +7,21 @@ import type { Config } from './store.js';
 const require=createRequire(import.meta.url);
 const OpusScript=require('opusscript');
 export type VoiceReply={speaker:string;text:string};
-export async function registerVoice(app:FastifyInstance,options:{config:()=>Config;hasSession:(id:string)=>boolean;respond:(id:string,text:string,isCurrent:()=>boolean,target?:string)=>Promise<VoiceReply[]>;voiceFor:(id:string,role:string)=>{provider:string;voiceType:string}}){
+type VoiceBinding={voiceId?:string;provider?:string;voiceType?:string};
+export async function registerVoice(app:FastifyInstance,options:{config:()=>Config;hasSession:(id:string)=>boolean;respond:(id:string,text:string,isCurrent:()=>boolean,target?:string)=>Promise<VoiceReply[]>;voiceFor:(id:string,role:string)=>VoiceBinding}){
  const tickets=new Map<string,{sessionId:string;expires:number}>();
  type CallbackEntry={link:VoiceLink;generation:number;promise:Promise<string>};
- type VoiceLink={sessionId:string;deviceId:string;socket:WebSocket;generation:number;active:boolean;approvedAudio:boolean;target?:string};
+ type SpeechItem={text:string;voiceId:string};
+ type VoiceLink={sessionId:string;linxSessionId:string;deviceId:string;socket:WebSocket;upstream:WebSocket;generation:number;active:boolean;approvedAudio:boolean;target?:string;speechQueue:SpeechItem[];speaking:boolean};
  const callbackCache=new Map<string,CallbackEntry>();
  const links=new Map<string,VoiceLink>();
+ const pumpSpeech=(link:VoiceLink)=>{
+  if(link.speaking||!link.speechQueue.length||link.upstream.readyState!==WebSocket.OPEN)return;
+  const item=link.speechQueue.shift();if(!item)return;
+  link.speaking=true;link.approvedAudio=true;
+  link.upstream.send(JSON.stringify({type:'listen',session_id:link.linxSessionId,state:'detect',text_response:item.text,agent_params:{voice:{id:item.voiceId}}}));
+ };
+ const clearSpeech=(link:VoiceLink)=>{link.speechQueue=[];link.speaking=false;};
  app.post('/api/voice/ticket',async(req)=>{
   const id=(req.body as any)?.sessionId;if(typeof id!=='string'||!options.hasSession(id))throw new Error('房间不存在');
   const c=options.config().linx;if(!c.deviceId||!c.wsToken||!c.callbackToken)throw new Error('请先配置灵矽设备 ID、连接 Token 和业务回调 Token');
@@ -47,9 +56,13 @@ export async function registerVoice(app:FastifyInstance,options:{config:()=>Conf
      sid=msg.session_id;outputRate=msg.audio_params?.sample_rate??24000;outputFormat=msg.audio_params?.format??'opus';
      if(![8000,12000,16000,24000,48000].includes(outputRate)||!['pcm','opus'].includes(outputFormat))throw new Error('灵矽返回不支持的音频格式');
      if(outputFormat==='opus')decoder=new OpusScript(outputRate,1,OpusScript.Application.AUDIO);
-     ready=true;clearTimeout(timeout);links.set(sid,{sessionId:grant.sessionId,deviceId:c.deviceId,socket:browser,generation:0,active:false,approvedAudio:false});send({type:'ready',sampleRate:outputRate});
+     ready=true;clearTimeout(timeout);links.set(sid,{sessionId:grant.sessionId,linxSessionId:sid,deviceId:c.deviceId,socket:browser,upstream,generation:0,active:false,approvedAudio:false,speechQueue:[],speaking:false});send({type:'ready',sampleRate:outputRate});
     }else if(msg.type==='stt')send({type:'transcript',text:msg.text});
-    else if(msg.type==='tts'){if(links.get(sid)?.approvedAudio)send({type:'tts',state:msg.state,isAborted:msg.is_aborted});}
+    else if(msg.type==='tts'){
+     const link=links.get(sid);
+     if(msg.state==='stop'&&link){link.speaking=false;pumpSpeech(link);}
+     if(link?.approvedAudio)send({type:'tts',state:msg.state,isAborted:msg.is_aborted});
+    }
    }catch(e){send({type:'error',message:(e as Error).message});upstream.close();browser.close();}
   });
   browser.on('message',(data,isBinary)=>{
@@ -60,16 +73,16 @@ export async function registerVoice(app:FastifyInstance,options:{config:()=>Conf
     const msg=JSON.parse(data.toString());
      if(msg.type==='start'){
      if(msg.target!==undefined&&(typeof msg.target!=='string'||!msg.target.length||msg.target.length>64))throw new Error('无效的私聊对象');
-     link.target=msg.target;link.generation++;link.active=true;link.approvedAudio=false;
+     link.target=msg.target;link.generation++;link.active=true;link.approvedAudio=false;clearSpeech(link);
      upstream.send(JSON.stringify({type:'abort',session_id:sid,reason:'wake_word_detected'}));
      upstream.send(JSON.stringify({type:'listen',session_id:sid,state:'start',mode:'manual'}));
     }else if(msg.type==='stop'){
      // A stop invalidates every in-flight callback and any TTS frames already queued upstream.
-     link.generation++;link.active=false;link.approvedAudio=false;link.target=undefined;
+     link.generation++;link.active=false;link.approvedAudio=false;link.target=undefined;clearSpeech(link);
      upstream.send(JSON.stringify({type:'abort',session_id:sid,reason:'user_stop'}));
      upstream.send(JSON.stringify({type:'listen',session_id:sid,state:'stop',mode:'manual'}));
     }
-    else if(msg.type==='abort'){link.generation++;link.active=false;link.approvedAudio=false;upstream.send(JSON.stringify({type:'abort',session_id:sid,reason:'wake_word_detected'}));send({type:'tts',state:'stop',isAborted:true});}
+    else if(msg.type==='abort'){link.generation++;link.active=false;link.approvedAudio=false;clearSpeech(link);upstream.send(JSON.stringify({type:'abort',session_id:sid,reason:'wake_word_detected'}));send({type:'tts',state:'stop',isAborted:true});}
    }catch{send({type:'error',message:'音频控制消息无效'});}
   });
   upstream.on('error',()=>send({type:'error',message:'灵矽连接失败，请检查设备绑定和连接 Token'}));
@@ -101,9 +114,21 @@ export async function registerVoice(app:FastifyInstance,options:{config:()=>Conf
    try{responses=await options.respond(link.sessionId,msg,isCurrent,target);}
    catch(e){if(link.socket.readyState===WebSocket.OPEN)link.socket.send(JSON.stringify({type:'error',message:(e as Error).message}));responses=[];}
    if(!isCurrent())responses=[];
-   const chunks=responses.map(r=>{
-    const voice=options.voiceFor(link.sessionId,r.speaker);
-    if(!voice?.provider||!voice.voiceType)throw new Error(`角色 ${r.speaker} 尚未配置灵矽音色`);
+   const bindings=responses.map(r=>options.voiceFor(link.sessionId,r.speaker));
+   const hasDirect=bindings.some(v=>Boolean(v.voiceId));
+   if(hasDirect&&bindings.some(v=>!v.voiceId))throw new Error('本轮角色音色配置不完整，不能混用音色协议');
+   if(hasDirect){
+    if(isCurrent()){
+     link.approvedAudio=responses.length>0;
+     link.speechQueue.push(...responses.map((r,i)=>({text:r.text,voiceId:bindings[i].voiceId!})));
+     pumpSpeech(link);
+    }
+    if(isCurrent()&&link.socket.readyState===WebSocket.OPEN)link.socket.send(JSON.stringify({type:'session_updated'}));
+    return `data: ${JSON.stringify({event:'message_end',session_id:sid})}\n\n`;
+   }
+   const chunks=responses.map((r,i)=>{
+    const voice=bindings[i];
+    if(!voice?.provider||!voice.voiceType)throw new Error(`角色 ${r.speaker} 尚未配置灵矽音色 ID`);
     return `data: ${JSON.stringify({event:'message',type:'chat',session_id:sid,details:{answer:r.text,tts_provider:voice.provider,voice_type:voice.voiceType,speed_ratio:1,pitch_ratio:1}})}\n\n`;
    });
    if(isCurrent())link.approvedAudio=responses.length>0;

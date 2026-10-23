@@ -6,7 +6,7 @@
 
 已实现原创短本、任选角色、阶段／搜证／投票引擎、角色上下文过滤、严格台词选择、会话文件持久化、响应式页面及服务配置界面。支持 Chat Completions、Responses、Anthropic Messages 三种模型协议适配。
 
-**目前不是满足最终验收的版本。** 已实现浏览器麦克风 PCM 采集、灵矽 WebSocket 桥接、下行 Opus 解码、第三方 SSE 回调及 PDF／文本解析草稿流程，但仅通过本地协议测试，尚未连接真实灵矽服务或完成手机语音实测。已加入音色目录读取、默认分配、参考音频上传与复刻训练界面，以及可选访问口令认证；这些新增功能尚未完成真实灵矽联调，平台音色 ID 到 TTS 参数的映射仍待确认。
+**目前不是满足最终验收的版本。** 已实现浏览器麦克风 PCM 采集、灵矽 WebSocket 桥接、下行 Opus 解码、第三方 SSE 回调及 PDF／文本解析草稿流程，但尚未连接真实设备完成手机语音实测。已加入音色目录读取、默认分配、原生灵矽音色 ID 播放、参考音频上传与复刻训练界面，以及可选访问口令认证；平台目录和原生 WebSocket 音色切换已用公开 API 响应及模拟链路验证，真实设备仍需账号侧绑定。
 
 上传支持结构化 JSON，以及 PDF／UTF-8 TXT／Markdown。非 JSON 文件使用配置的解析模型形成草稿，必须核对原文、角色知情范围、阶段、线索、台词和结局后发布；角色资料、阶段、事实、线索、台词和结局均需有可在原文中定位的引用，缺少或伪造引用会阻止发布。扫描 PDF 可先在 macOS 上运行 `scripts/ocr-pdf.sh` 生成带页码的 OCR 草稿，再把 OCR 文本交给解析模型；OCR 结果只作为待审核材料，不能绕过引用校验。首次版本仅支持有投票和揭晓结局的完整推理本。
 
@@ -49,7 +49,7 @@ npm run build
 
 ## 灵矽联调准备
 
-在“连接与声音”填写灵矽 API Key、WebSocket Token、Device ID、Client ID、Agent ID 与业务回调 Token，并为 DM 和所有 AI 角色设置 TTS provider / voice_type。平台的第三方业务服务应指向：
+在“连接与声音”填写灵矽 API Key、WebSocket Token、Device ID、Client ID、Agent ID 与业务回调 Token，并为 DM 和所有 AI 角色绑定灵矽音色 ID。平台的第三方业务服务应指向：
 
 ```text
 https://你的域名/integrations/linx/chat/stream

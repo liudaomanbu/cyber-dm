@@ -27,7 +27,7 @@ export class GameService{
  private requireVoice(script:Script,role:string,c:Config){
   if(role!=='dm'&&!script.roles.some(r=>r.id===role))throw new game.RuleError('未知角色');
   const v=c.roleVoices[bindingKey(script.id,role)];
-  if(!v?.provider||!v.voiceType)throw new game.RuleError(`请配置 ${role} 的灵矽音色对应参数`);return v;
+  if(!v?.voiceId&&(!v?.provider||!v.voiceType))throw new game.RuleError(`请为 ${role} 绑定灵矽音色 ID`);return v;
  }
  voiceFor(sessionId:string,role:string){const s=this.deps.sessions[sessionId];if(!s)throw new game.RuleError('房间不存在');const script=this.deps.scripts[s.scriptId];if(!script)throw new game.RuleError('剧本不存在');return this.requireVoice(script,role,this.deps.config());}
  private async npc(s:game.Session,script:Script,role:string,channel:'public'|'private',config:Config){

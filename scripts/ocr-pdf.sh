@@ -32,7 +32,11 @@ swiftc "$script_dir/vision-ocr.swift" -o "$binary"
 
 {
   printf '# OCR 草稿\n\n文件：%s\n\n' "$input"
-  # Keep page image names in the output so a reviewer can jump back to PDF pages.
-  "$binary" "$work"/page-*.jpg
+  page=0
+  for image in "$work"/page-*.jpg; do
+    page=$((page + 1))
+    printf '\n===== 第 %s 页 =====\n' "$page"
+    "$binary" "$image"
+  done
 } > "$output"
 echo "已写入 $output；这是待人工核对的 OCR 材料，不会自动发布。"

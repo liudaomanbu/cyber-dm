@@ -32,13 +32,13 @@ export function readiness(config: Config, scripts: Record<string, Script>): Read
       const key = bindingKey(script.id, role.id);
       if (!providerIds.has(config.roleModels[key])) missingModels.push(`${script.title}/${role.name}`);
       const voice = config.roleVoices[key];
-      if (!voice?.provider || !voice.voiceType) missingVoices.push(`${script.title}/${role.name}`);
+      if (!voice?.voiceId && (!voice?.provider || !voice.voiceType)) missingVoices.push(`${script.title}/${role.name}`);
     }
   }
   const summarize = (names: string[]) => names.length === 0 ? '' : `缺少：${names.slice(0, 4).join('、')}${names.length > 4 ? '等' : ''}`;
   items.push({ id: 'role-models', label: '每个角色已有独立模型绑定', ok: missingModels.length === 0,
     detail: missingModels.length ? summarize(missingModels) : `已绑定 ${roles} 个角色位` });
-  items.push({ id: 'role-voices', label: '每个角色已有独立灵矽音色', ok: missingVoices.length === 0,
+  items.push({ id: 'role-voices', label: '每个角色已有独立灵矽音色 ID', ok: missingVoices.length === 0,
     detail: missingVoices.length ? summarize(missingVoices) : `已绑定 ${roles} 个角色位` });
 
   const linx = config.linx;

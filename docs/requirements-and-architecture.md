@@ -142,7 +142,7 @@ LLM、ASR、TTS、VoiceClone、Image 分别有适配接口。任意文本模型�
 | 文档事实 | 本项目设计含义 |
 | --- | --- |
 | 第三方 Chat 模式将 ASR 文字 POST 至业务服务，接收 SSE 文字回复 | 游戏引擎可直接作为业务服务，不必把剧情交给平台单助手 |
-| SSE chat message 示例包含 answer、tts_provider、voice_type、speed_ratio、pitch_ratio | 优先尝试每个已校验发言携带对应角色声音 |
+| SSE chat message 示例包含 answer、tts_provider、voice_type、speed_ratio、pitch_ratio；原生 WebSocket 支持 `listen.detect.text_response` 与 `agent_params.voice.id` | 原生 WebSocket 优先逐条使用角色音色 ID；旧版第三方 TTS 回调才使用 provider／voice_type |
 | 所有 SSE 响应要求原样返回 session_id | 外部会话与内部 game_session 映射，不能把它当作角色身份 |
 | 音色切换保留当前上下文 | 不能用换音色模拟角色记忆隔离 |
 | WebSocket 支持 PCM／Opus、STT、TTS、abort | 可实现语音输入、播放及打断；按实际握手参数配置 |
@@ -151,7 +151,7 @@ LLM、ASR、TTS、VoiceClone、Image 分别有适配接口。任意文本模型�
 
 业务服务拟提供 `/integrations/linx/chat/stream`；请求含 auth.device_id、type、details.msg、details.session_id。检查回调鉴权及已绑定设备，不能信任任意 device_id 即给予房间权限。消息按房间串行处理，防止重复请求和并发阶段提交。
 
-必须先联调：第三方模式的实际开通／配置入口；同一次 SSE 多条 chat 是否逐条采用各自音色、保持播放顺序；voice_type 与平台 voice id／clone id 的映射；断开与 abort 是否取消后端推理；客户端是否提供可用的播放完成反馈。第三方文档的 custom 消息示例与字段表存在不同封装形态，适配时保留协议样本并验证，不凭示例认定统一格式。
+必须先联调：第三方模式的实际开通／配置入口；原生 WebSocket `listen.detect` 多条文本是否逐条采用各自音色并保持播放顺序；旧版 voice_type 与平台 voice id／clone id 的映射；断开与 abort 是否取消后端推理；客户端是否提供可用的播放完成反馈。第三方文档的 custom 消息示例与字段表存在不同封装形态，适配时保留协议样本并验证，不凭示例认定统一格式。
 
 首版主链路必须是浏览器直接语音输入与播放。PC 和移动 Web 使用 getUserMedia 获取麦克风，经 AudioWorklet／Web Audio 采集和重采样，再由后端 WebSocket 桥接灵矽协议；浏览器无法任意设置灵矽要求的握手认证头，凭据必须留在后端。优先验证上行 PCM；下行按实际协商格式处理，若返回 Opus 则在后端解码为浏览器可播放的 PCM，或使用经目标浏览器验证的解码方案，不能假设裸 Opus 帧可直接交给 audio 元素。原生客户端仅作为协议排障参考，不能替代 Web 端交付。
 

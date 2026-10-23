@@ -29,3 +29,16 @@ test('readiness becomes ready when every model, voice and Linx field is bound', 
   assert.equal(report.ready, true);
   assert(report.items.every((item) => item.ok));
 });
+
+test('readiness accepts native Linx voice ids without legacy TTS mapping', () => {
+  const config = structuredClone(defaultConfig);
+  config.providers = [{ id: 'p', name: 'test', protocol: 'chat-completions', baseUrl: 'https://example.com/v1', modelId: 'm', apiKey: 'secret', timeoutMs: 1000 }];
+  for (const role of [{ id: 'dm' }, ...script.roles]) {
+    const key = bindingKey(script.id, role.id);
+    config.roleModels[key] = 'p';
+    config.roleVoices[key] = { provider: '', voiceType: '', voiceId: `native-${role.id}` };
+  }
+  config.linx = { ...config.linx, apiKey: 'secret', wsToken: 'secret', deviceId: 'device', callbackToken: 'secret' };
+  const report = readiness(config, { [script.id]: script });
+  assert.equal(report.items.find((item) => item.id === 'role-voices')?.ok, true);
+});
