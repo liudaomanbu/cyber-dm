@@ -17,7 +17,11 @@ import { bindingKey } from '../core/bindings.js';
 import { registerVoice } from './voice.js';
 import { readiness } from './readiness.js';
 
-const app=Fastify({logger:{serializers:{req:req=>({method:req.method,url:req.url?.split('?')[0]?.replace(/(\/voice-samples\/[^/]+)\/.*/, '$1/[redacted]')})}},bodyLimit:2*1024*1024});
+const certPath=process.env.CYBER_DM_TLS_CERT;
+const keyPath=process.env.CYBER_DM_TLS_KEY;
+if(Boolean(certPath)!==Boolean(keyPath))throw new Error('CYBER_DM_TLS_CERT 与 CYBER_DM_TLS_KEY 必须同时配置');
+const httpsOptions=certPath&&keyPath?{cert:await readFile(resolve(certPath)),key:await readFile(resolve(keyPath))}:undefined;
+const app=Fastify({...(httpsOptions?{https:httpsOptions}:{}),logger:{serializers:{req:req=>({method:req.method,url:req.url?.split('?')[0]?.replace(/(\/voice-samples\/[^/]+)\/.*/, '$1/[redacted]')})}},bodyLimit:2*1024*1024});
 await registerAccess(app,{accessCode:process.env.CYBER_DM_ACCESS_CODE,publicOrigin:process.env.CYBER_DM_PUBLIC_ORIGIN});
 await app.register(multipart,{limits:{fileSize:15*1024*1024,files:1}});
 let config= configSchema.parse(await load('config',defaultConfig));
