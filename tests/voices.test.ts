@@ -20,6 +20,15 @@ test('voice catalog keeps resource id separate from callback voice_type',()=>{
  assert.throws(()=>voiceSchema.parse({voice_type:'only-callback',name:'缺少资源 ID'}));
 });
 
+test('voice catalog accepts null tag dimensions from Linx',()=>{
+ const voice=voiceSchema.parse({
+  id:'catalog-1',
+  name:'目录音色',
+  tags:{languages:null,age:'young',gender:'female',styles:null,scenes:null},
+ });
+ assert.deepEqual(voice.tags,{age:'young',gender:'female'});
+});
+
 test('voice assignment skips clone jobs that are not ready',()=>{
  const voices=[
   {id:'training',name:'训练中',state:'Training',tags:{languages:['zh']}},

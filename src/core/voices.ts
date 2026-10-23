@@ -17,9 +17,15 @@ const voiceTags = z.object({
 export const voiceSchema = z.preprocess((value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const source = value as Record<string, unknown>;
-  const tags = source.tags && typeof source.tags === 'object'
+  const tags = source.tags && typeof source.tags === 'object' && !Array.isArray(source.tags)
     ? { ...(source.tags as Record<string, unknown>) }
     : {};
+  // The Linx catalog uses null for missing tag dimensions on some voices.
+  // Remove those fields before validation so a partial catalog entry remains
+  // usable while the scoring code continues to treat them as absent.
+  for (const key of ['languages', 'age', 'gender', 'styles', 'scenes']) {
+    if (tags[key] == null) delete tags[key];
+  }
   const language = source.language;
   if (!tags.languages && typeof language === 'string' && language) tags.languages = [language];
   return {
@@ -27,7 +33,7 @@ export const voiceSchema = z.preprocess((value) => {
     id: source.id ?? source.voice_id ?? source.voiceId,
     name: source.name ?? source.display_name ?? source.voice_name ?? source.voice_id ?? source.voiceId,
     demo: source.demo ?? source.demo_url ?? source.preview_url,
-    tags: Object.keys(tags).length ? tags : source.tags,
+    tags: Object.keys(tags).length ? tags : undefined,
     provider: source.provider ?? source.tts_provider,
     // Deliberately do not use id/voice_id as a voice_type fallback.
     voice_type: source.voice_type ?? source.voiceType,

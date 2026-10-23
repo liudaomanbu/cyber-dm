@@ -10,6 +10,7 @@ export function VoicePanel({sessionId,target,roles,onTarget,api,onUpdate,onError
  const [status,setStatus]=useState('未连接语音');
  const [ready,setReady]=useState(false);
  const [recording,setRecording]=useState(false);
+ const [inputLevel,setInputLevel]=useState(0);
  const [transcript,setTranscript]=useState('');
  const socket=useRef<WebSocket|null>(null);
  const audio=useRef<AudioContext|null>(null);
@@ -36,7 +37,7 @@ export function VoicePanel({sessionId,target,roles,onTarget,api,onUpdate,onError
   stopPlayback();
   const ctx=audio.current;audio.current=null;
   if(ctx)void ctx.close().catch(()=>{});
-  if(mounted.current){setReady(false);setRecording(false);setStatus(message);}
+  if(mounted.current){setReady(false);setRecording(false);setInputLevel(0);setStatus(message);}
  },[stopPlayback]);
 
  const connect=async()=>{
@@ -56,7 +57,10 @@ export function VoicePanel({sessionId,target,roles,onTarget,api,onUpdate,onError
    const mic=new AudioWorkletNode(ctx,'microphone');node.current=mic;
    const gain=ctx.createGain();gain.gain.value=0;
    ctx.createMediaStreamSource(stream.current).connect(mic);mic.connect(gain).connect(ctx.destination);
-   mic.port.onmessage=e=>{if(rec.current&&socket.current?.readyState===WebSocket.OPEN&&socket.current.bufferedAmount<128000)socket.current.send(e.data);};
+   mic.port.onmessage=e=>{
+    if(e.data&&typeof e.data==='object'&&e.data.type==='level'){setInputLevel(Number(e.data.value)||0);return;}
+    if(rec.current&&socket.current?.readyState===WebSocket.OPEN&&socket.current.bufferedAmount<128000)socket.current.send(e.data);
+   };
    const ticket=await api('/voice/ticket',{method:'POST',body:JSON.stringify({sessionId})});
    const wsScheme=location.protocol==='https:'?'wss:':'ws:';
    const ws=new WebSocket(`${wsScheme}//${location.host}/voice/socket?ticket=${encodeURIComponent(ticket.ticket)}`);
@@ -105,5 +109,5 @@ export function VoicePanel({sessionId,target,roles,onTarget,api,onUpdate,onError
  };
 
  const abort=()=>{rec.current=false;setRecording(false);stopPlayback();if(socket.current?.readyState===WebSocket.OPEN)socket.current.send(JSON.stringify({type:'abort'}));setStatus(ready?'语音已就绪':'未连接语音');};
- return <div className="voice-panel"><div className="voice-heading"><strong>◉ 语音房间</strong><small role="status" aria-live="polite">{status}</small></div><p className="voice-hint">手机端请使用 HTTPS；首次连接会请求麦克风权限，浏览器地址栏需显示安全锁。</p><label>语音发言对象<select value={target} disabled={recording} onChange={e=>onTarget(e.target.value)}><option value="">公开讨论</option><option value="dm">私聊主持人</option>{roles.map(r=><option key={r.id} value={r.id}>私聊 {r.name}</option>)}</select></label><div className="voice-buttons">{!ready?<button onClick={()=>void connect()} disabled={connecting.current}>{connecting.current?'连接中…':'连接麦克风'}</button>:<><button className={recording?'recording':''} onClick={()=>void toggle()}>{recording?'■ 结束录音':'● 开始说话'}</button><button className="secondary" onClick={abort}>停止播放</button><button className="secondary" onClick={()=>disconnect()}>断开</button></>}</div>{transcript&&<p>识别：{transcript}</p>}<p className="muted">可说“下一阶段”“搜查＋线索名”“投票＋角色名”，关键操作会先复述，再说“确认执行”才生效；也可说“取消操作”。切到后台会暂停语音，返回后自动尝试恢复。</p></div>;
+ return <div className="voice-panel"><div className="voice-heading"><strong>◉ 语音房间</strong><small role="status" aria-live="polite">{status}</small></div><p className="voice-hint">手机端请使用 HTTPS；首次连接会请求麦克风权限，浏览器地址栏需显示安全锁。</p><label>语音发言对象<select value={target} disabled={recording} onChange={e=>onTarget(e.target.value)}><option value="">公开讨论</option><option value="dm">私聊主持人</option>{roles.map(r=><option key={r.id} value={r.id}>私聊 {r.name}</option>)}</select></label><div className="voice-meter" role="meter" aria-label="麦克风输入音量" aria-valuemin={0} aria-valuemax={1} aria-valuenow={inputLevel}><span style={{width:`${Math.round(inputLevel*100)}%`}}/></div><small className="voice-meter-label">麦克风输入 {inputLevel>0.04?'已收到声音':'等待声音'}</small><div className="voice-buttons">{!ready?<button onClick={()=>void connect()} disabled={connecting.current}>{connecting.current?'连接中…':'连接麦克风'}</button>:<><button className={recording?'recording':''} onClick={()=>void toggle()}>{recording?'■ 结束录音':'● 开始说话'}</button><button className="secondary" onClick={abort}>停止播放</button><button className="secondary" onClick={()=>disconnect()}>断开</button></>}</div>{transcript&&<p>识别：{transcript}</p>}<p className="muted">可说“下一阶段”“搜查＋线索名”“投票＋角色名”，关键操作会先复述，再说“确认执行”才生效；也可说“取消操作”。切到后台会暂停语音，返回后自动尝试恢复。</p></div>;
 }
