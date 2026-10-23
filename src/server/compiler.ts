@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { parseScript, scriptSchema, type Script } from '../core/script.js';
 import { generate,parseJson } from './models.js';
 import type { Provider } from './store.js';
-export type Draft={id:string;filename:string;source:string;script:Script;warnings:string[];createdAt:string};
+export type Draft={id:string;filename:string;source:string;sourceMode:'uploaded'|'generated';script:Script;warnings:string[];createdAt:string};
 export async function extractText(filename:string,bytes:Buffer):Promise<string>{
  if(/\.pdf$/i.test(filename)){
   const parser=new PDFParse({data:new Uint8Array(bytes)});
@@ -34,5 +34,26 @@ export async function compile(filename:string,bytes:Buffer,provider:Provider):Pr
  const warnings=verifySources(script,source);
  warnings.push('必须核对角色知情范围、阶段解锁、主持引导与结局；原文引用存在不等于语义与权限正确。');
  if(!script.roles.every(r=>script.utterances.some(u=>u.roleId===r.id)))warnings.push('部分角色缺少可用台词；发布前需补充原文支持的内容。');
- return {id:randomUUID(),filename,source,script,warnings,createdAt:new Date().toISOString()};
+ return {id:randomUUID(),filename,source,sourceMode:'uploaded',script,warnings,createdAt:new Date().toISOString()};
+}
+
+/** Generate a reviewable draft from a user's brief. Generated content is
+ * never published implicitly; the author must inspect it before publishing. */
+export async function generateDraft(prompt:string,provider:Provider):Promise<Draft>{
+ const brief=prompt.trim();
+ if(brief.length<12)throw new Error('生成要求至少需要 12 个字符');
+ if(brief.length>6000)throw new Error('生成要求最多 6000 个字符');
+ const schema=z.toJSONSchema(scriptSchema);
+ const result=await generate(provider,
+  '你是严格的原创剧本设计器。根据用户 brief 生成一个可玩的中文推理剧本草稿，只输出符合 schema 的 JSON。必须包含至少两个角色、讨论/搜证阶段、投票和揭晓阶段；所有事实、线索、台词和结局都必须在本次输出内自洽，不能引用外部事实。source.document 固定为“AI原创草稿”，source.locator 使用稳定的元素 ID，source.quote 必须逐字等于对应 text。角色秘密只能通过 knownBy 授权，台词只能引用同一脚本中的 factIds。输出是待人工审核草稿，不代表已经可信。',
+  {brief,schema},16000);
+ const raw=parseJson(result.text);
+ if(raw&&typeof raw==='object'&&'error' in raw)throw new Error(String(raw.error));
+ const script=parseScript(raw);
+ const warnings=[
+  '这是根据用户要求生成的原创草稿；发布前必须核对事实、角色权限、阶段解锁、台词与结局。',
+  '生成内容没有外部原文依据，不能跳过人工审核。',
+ ];
+ if(!script.roles.every(r=>script.utterances.some(u=>u.roleId===r.id)))warnings.push('部分角色缺少可用台词；发布前需补充。');
+ return {id:randomUUID(),filename:`AI原创-${script.title}.json`,source:`用户生成要求：\n${brief}`,sourceMode:'generated',script,warnings,createdAt:new Date().toISOString()};
 }
