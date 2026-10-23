@@ -37,3 +37,12 @@ test('voice assignment skips clone jobs that are not ready',()=>{
  const result=chooseVoices([{id:'dm',name:'主持人'}],voices);
  assert.equal(result.dm.id,'ready');
 });
+
+test('voice assignment does not treat female as male because of substring matching',()=>{
+  const voices=[
+    { id:'female-1', name:'女声', tags:{languages:['zh'],gender:'female',styles:[]} },
+    { id:'male-1', name:'男声', tags:{languages:['zh'],gender:'male',styles:[]} },
+  ];
+  const result=chooseVoices([{id:'a',name:'男性角色',voiceHint:'成年男声'}],voices as any);
+  assert.equal(result.a.id,'male-1');
+});

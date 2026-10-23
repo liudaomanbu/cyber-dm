@@ -76,7 +76,9 @@ function genderMatch(value: string | undefined, expected: 'female' | 'male'): bo
   const normalized = value?.toLowerCase() ?? '';
   return expected === 'female'
     ? /female|woman|女/.test(normalized)
-    : /male|man|男/.test(normalized);
+    // `female` contains the substring `male`; keep the negative guard so a
+    // female catalog entry cannot satisfy a male role hint.
+    : (/(^|[^a-z])male([^a-z]|$)|男/.test(normalized) && !/female/.test(normalized));
 }
 
 function ageMatch(value: string | undefined): boolean {
