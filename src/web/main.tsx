@@ -1,4 +1,4 @@
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import './style.css';
 import {bindingKey} from '../core/bindings';
@@ -15,10 +15,32 @@ function App(){
  const [drafts,setDrafts]=useState<any[]>([]);const [draftEdit,setDraftEdit]=useState<Record<string,string>>({});const [reviewed,setReviewed]=useState<Record<string,boolean>>({});
  const [page,setPage]=useState<'library'|'settings'|'game'>('library');const [scripts,setScripts]=useState<any[]>([]);const [config,setConfig]=useState<any>();const [session,setSession]=useState<any>();
  const [history,setHistory]=useState<any[]>([]);const [readiness,setReadiness]=useState<any>();const [generatePrompt,setGeneratePrompt]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);const [text,setText]=useState('');const [target,setTarget]=useState('');const [notice,setNotice]=useState('');
+ const autoAssigned=useRef(new Set<string>());
  useEffect(()=>{setTarget('');},[session?.id]);
  const run=async(f:()=>Promise<void>)=>{setError('');setBusy(true);try{await f();}catch(e){setError((e as Error).message);}finally{setBusy(false);}};
  const initialize=async()=>{capability=(await api('/bootstrap')).key;setScripts(await api('/scripts'));setConfig(await api('/config'));setHistory(await api('/sessions'));setDrafts(await api('/drafts'));setReadiness(await api('/readiness'));};
  useEffect(()=>{void run(async()=>{const access=await api('/access/status');if(access.required){setNeedsLogin(true);return;}await initialize();});},[]);
+ useEffect(()=>{
+  if(!config?.linx?.apiKey||scripts.length===0)return;
+  for(const script of scripts){
+   const key=`${script.id}:${config.linx.apiKey}`;
+   const complete=[{id:'dm'},...script.roles].every((role:any)=>{
+    const voice=config.roleVoices?.[bindingKey(script.id,role.id)];return Boolean(voice?.provider&&voice?.voiceType);
+   });
+   if(complete||autoAssigned.current.has(key))continue;
+   autoAssigned.current.add(key);
+   void (async()=>{
+    try{
+     await api('/linx/voices/assign',{method:'POST',body:JSON.stringify({scriptId:script.id})});
+     setConfig(await api('/config'));setReadiness(await api('/readiness'));
+     setNotice(`${script.title} 已自动匹配默认音色；若目录没有 voice_type，请在角色音色栏补充映射。`);
+    }catch{
+     // Keep the explicit button available when the catalog is not reachable.
+     autoAssigned.current.delete(key);
+    }
+   })();
+  }
+ },[config,scripts]);
  const act=(kind:string,extra:Record<string,string>={})=>run(async()=>{setSession(await api(`/sessions/${session.id}/action`,{method:'POST',body:JSON.stringify({kind,...extra,requestId:uid()})}));});
  const roles=scripts.flatMap(s=>[{id:'dm',name:'主持人'},...s.roles].map((r:any)=>({...r,scriptId:s.id,scriptTitle:s.title,binding:bindingKey(s.id,r.id)})));
  if(needsLogin)return <main><section className="panel"><span className="eyebrow">CYBER DM</span><h1>进入你的故事空间</h1><p>请输入部署时设置的访问口令。</p><form onSubmit={e=>{e.preventDefault();void run(async()=>{await api('/access/login',{method:'POST',body:JSON.stringify({code:accessCode})});await initialize();setAccessCode('');setNeedsLogin(false);});}}><label>访问口令<input type="password" value={accessCode} autoComplete="current-password" onChange={e=>setAccessCode(e.target.value)}/></label><button disabled={busy}>进入</button></form>{error&&<p role="alert">{error}</p>}</section></main>;
