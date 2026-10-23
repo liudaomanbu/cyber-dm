@@ -24,3 +24,11 @@ scripts/ocr-pdf.sh "/Users/caotc/Downloads/2194-乱春/乱春剧本/不   悔A.p
 ```
 
 OCR 结果只用于解析和人工核对。上传发布仍要求原文引用，缺少引用、引用无法在原文找到或角色权限不明确时，服务端会阻止发布。
+
+如果要把整套资料一次性整理成一个待审核材料包，可以对目录运行：
+
+```sh
+scripts/ocr-directory.sh "/Users/caotc/Downloads/2194-乱春/乱春剧本" /tmp/luanchun.ocr-bundle.md
+```
+
+目录级命令会逐个 PDF 保留文件名和页码标记。完整资料可能超过首版解析模型的单次输入上限，实际导入时建议先上传《乱春手册.pdf》，再按幕或按角色分批 OCR、审核；不要把合并 OCR 文件直接发布为可玩剧本。
