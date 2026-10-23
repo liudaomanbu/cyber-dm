@@ -10,14 +10,17 @@ input=$1
 output=${2:-${input%.*}.ocr.txt}
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 runtime_root=${CYBER_DM_RUNTIME_ROOT:-/Users/caotc/.cache/codex-runtimes/codex-primary-runtime/dependencies}
-pdftoppm=${CYBER_DM_PDFTOPPM:-$runtime_root/bin/override/pdftoppm}
+pdftoppm=${CYBER_DM_PDFTOPPM:-}
 
 if ! command -v swift >/dev/null 2>&1; then
   echo "当前系统没有 Swift；请在支持 Vision 的 macOS 上运行。" >&2
   exit 1
 fi
-if [ ! -x "$pdftoppm" ]; then
+if [ -z "$pdftoppm" ]; then
   pdftoppm=$(command -v pdftoppm || true)
+fi
+if [ -z "$pdftoppm" ] && [ -x "$runtime_root/bin/override/pdftoppm" ]; then
+  pdftoppm="$runtime_root/bin/override/pdftoppm"
 fi
 if [ -z "$pdftoppm" ] || [ ! -x "$pdftoppm" ]; then
   echo "找不到 pdftoppm；请安装 Poppler，或设置 CYBER_DM_PDFTOPPM。" >&2
