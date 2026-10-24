@@ -1,5 +1,30 @@
 # HTTPS 子域名部署
 
+## 当前方案：Mac + Cloudflare Tunnel
+
+用户已选择在当前 Mac 运行应用，由 Cloudflare Tunnel 提供 `https://cyber-dm.caotc.org`。不需要开放路由器入站端口；Mac 和应用、隧道进程必须保持运行，休眠会使站点不可用。
+
+1. 安装 `brew install cloudflared`，执行 `cloudflared tunnel login`，在浏览器登录并授权 `caotc.org`。
+2. 执行 `cloudflared tunnel create cyber-dm`，将返回的 UUID 和凭据文件绝对路径填入 `deploy/cloudflared.example.yml` 的副本 `.data/cloudflared.yml`。
+3. 执行 `cloudflared tunnel route dns cyber-dm cyber-dm.caotc.org`，只为此子域名建立隧道 DNS 记录。
+4. 在 `.data/deployment.env` 设置以下内容（文件权限设为 `600`，口令使用随机值）：
+
+```dotenv
+HOST=127.0.0.1
+PORT=3001
+CYBER_DM_PUBLIC_ORIGIN=https://cyber-dm.caotc.org
+CYBER_DM_ACCESS_CODE=替换为至少16字符的随机口令
+```
+
+5. 停止旧的开发服务后，运行 `sh scripts/start-tunnel-server.sh`，另一个终端运行 `sh scripts/start-tunnel.sh`。
+6. 从公网验证 `/healthz` 返回成功，`/api/bootstrap` 未登录时返回 401，再通过首页登录。手机使用同一 HTTPS 域名。
+
+应用内部使用 HTTP，公网 TLS 由 Cloudflare 终止；WebSocket 自动通过隧道转发。不要使用 Host 覆盖来规避应用的来源校验。业务回调仍使用下面的固定 HTTPS 地址和独立回调 Token。隧道凭据与访问口令仅保存在本机忽略目录，不能提交仓库。
+
+当前 Mac 已使用官方 `cloudflared` 2026.10.3 的 Intel Mac 二进制，保存在 `.data/bin/cloudflared`，下载后已与 GitHub Release 的 SHA-256 摘要核对。手动执行上面的登录、创建和 DNS 命令时，把 `cloudflared` 替换为 `.data/bin/cloudflared`；启动脚本会自动使用本地版本。访问口令保存在 `.data/deployment.env`，业务回调 Token 在 `.data/config.json`，均不要复制到公开文档中。
+
+## 其他部署环境：Caddy
+
 手机浏览器的麦克风只会在安全上下文中工作，因此验收环境需要使用 HTTPS。反向代理必须同时转发普通 HTTP、`/voice/socket` WebSocket，以及灵矽的 `/integrations/linx/chat/stream` 回调。
 
 下面以 Caddy 为例。本项目使用的子域名是 `cyber-dm.caotc.org`，应用运行在同一台机器的 `127.0.0.1:3001`：

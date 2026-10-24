@@ -1,0 +1,7 @@
+# Replace both placeholders after `cloudflared tunnel create cyber-dm`.
+tunnel: TUNNEL_UUID
+credentials-file: /ABSOLUTE/PATH/TO/TUNNEL_UUID.json
+ingress:
+  - hostname: cyber-dm.caotc.org
+    service: http://127.0.0.1:3001
+  - service: http_status:404
