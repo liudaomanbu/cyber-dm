@@ -16,12 +16,22 @@ CYBER_DM_PUBLIC_ORIGIN=https://cyber-dm.caotc.org
 CYBER_DM_ACCESS_CODE=替换为至少16字符的随机口令
 ```
 
-5. 停止旧的开发服务后，运行 `sh scripts/start-tunnel-server.sh`，另一个终端运行 `sh scripts/start-tunnel.sh`。
+5. 停止旧的开发服务后，运行 `python3 scripts/macos-services.py install`，用 macOS LaunchAgent 管理应用和隧道。两个服务在当前用户登录时自动启动，退出后自动拉起，不依赖终端或开发工具会话。
 6. 从公网验证 `/healthz` 返回成功，`/api/bootstrap` 未登录时返回 401，再通过首页登录。手机使用同一 HTTPS 域名。
 
 应用内部使用 HTTP，公网 TLS 由 Cloudflare 终止；WebSocket 自动通过隧道转发。不要使用 Host 覆盖来规避应用的来源校验。业务回调仍使用下面的固定 HTTPS 地址和独立回调 Token。隧道凭据与访问口令仅保存在本机忽略目录，不能提交仓库。
 
 当前 Mac 已使用官方 `cloudflared` 2026.10.3 的 Intel Mac 二进制，保存在 `.data/bin/cloudflared`，下载后已与 GitHub Release 的 SHA-256 摘要核对。手动执行上面的登录、创建和 DNS 命令时，把 `cloudflared` 替换为 `.data/bin/cloudflared`；启动脚本会自动使用本地版本。访问口令保存在 `.data/deployment.env`，业务回调 Token 在 `.data/config.json`，均不要复制到公开文档中。
+
+服务管理：
+
+```sh
+python3 scripts/macos-services.py status
+```
+
+日志在 `.data/logs/`；服务名为 `org.caotc.cyber-dm.server` 和 `org.caotc.cyber-dm.tunnel`。升级 Node 路径或修改启动配置后重新运行 `install`。需要停止自动运行时执行 `python3 scripts/macos-services.py uninstall`，它保留本地资料和 Cloudflare DNS。调试时仍可手动运行 `sh scripts/start-tunnel-server.sh` 和 `sh scripts/start-tunnel.sh`，但不要与 LaunchAgent 重复启动。
+
+Cloudflare 1033 表示没有可用隧道连接；先检查 tunnel 服务与日志。若隧道在线但源站未启动，一般会出现 502，检查 server 服务和 `http://127.0.0.1:3001/healthz`。LaunchAgent 不会让关机、休眠、注销或断网的 Mac 保持公网在线；恢复联网并登录后由服务继续重连。
 
 ## 其他部署环境：Caddy
 
