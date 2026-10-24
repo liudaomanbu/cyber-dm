@@ -5,9 +5,13 @@ export function SoundSettings({api,scripts,config,setConfig,onError}:Props){
  const [voices,setVoices]=useState<any[]>([]),[clones,setClones]=useState<any[]>([]),[scriptId,setScriptId]=useState(scripts[0]?.id??''),[name,setName]=useState('我的角色声音'),[tier,setTier]=useState('free'),[sampleId,setSampleId]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
  const work=async(fn:()=>Promise<void>)=>{setBusy(true);onError('');try{await fn();}catch(e){onError((e as Error).message);}finally{setBusy(false);}};
  const saveConfig=async()=>setConfig(await api('/config',{method:'PUT',body:JSON.stringify(config)}));
- return <section className="panel"><div className="section-title"><h2>声音库与参考音频</h2><button className="secondary" disabled={busy} onClick={()=>void work(async()=>{await saveConfig();setVoices(await api('/linx/voices'));setClones((await api('/linx/clones')).voices??[]);})}>保存配置并加载音色</button></div>
- <p>从灵矽获取音色及试听。自动分配会优先匹配角色气质，并确保每个角色使用不同的声音。</p>
+ return <section className="panel"><div className="section-title"><h2>灵矽声音库与参考音频</h2><button className="secondary" disabled={busy} onClick={()=>void work(async()=>{await saveConfig();setVoices(await api('/linx/voices'));setClones((await api('/linx/clones')).voices??[]);})}>保存配置并加载音色</button></div>
+ <p>语音识别、语音合成和音色复刻统一使用灵矽。这里选择的是角色声音；自动分配会优先匹配角色气质，并使用不同音色。</p>
  <div className="assignment"><select aria-label="分配音色的剧本" value={scriptId} onChange={e=>setScriptId(e.target.value)}>{scripts.map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select><button disabled={busy||!scriptId} onClick={()=>void work(async()=>{await saveConfig();const result=await api('/linx/voices/assign',{method:'POST',body:JSON.stringify({scriptId})});setConfig(await api('/config'));setNotice(result.needsMapping.length?'部分音色没有返回有效音色 ID，请检查目录。':'已为角色分配灵矽音色 ID，请进入房间试听。');})}>自动分配默认声音</button></div>
+ <div className="role-voice-bindings">{[{id:'dm',name:'主持人'},...(scripts.find(s=>s.id===scriptId)?.roles??[])].map((r:any)=>{
+ const voice=config.roleVoices[bindingKey(scriptId,r.id)];
+ return <div className="role-voice-assignment" key={r.id}><strong>{r.name}</strong><div><span>{voice?.voiceId?'已绑定灵矽音色':voice?.provider&&voice?.voiceType?'已绑定灵矽回调音色':'尚未绑定灵矽音色'}</span>{voice?.voiceId&&<details><summary>音色标识</summary><small className="voice-id">{voice.voiceId}</small></details>}</div></div>;
+ })}</div>
  {notice&&<p role="status">{notice}</p>}
  {voices.length>0&&<details><summary>可用音色（{voices.length}）</summary><div className="voice-catalog">{voices.map(v=><div className="voice-card" key={v.id}><strong>{v.name}</strong><small>{v.id}</small><p>{[v.tags?.gender,v.tags?.age,...(v.tags?.styles??[])].filter(Boolean).join(' · ')}</p>{/^https:\/\//.test(v.demo??'')&&<audio controls preload="none" src={v.demo}/>}</div>)}</div></details>}
  <hr/><h3>上传参考声音</h3><p className="muted">建议使用清晰、无背景噪音的 20–30 秒音频。先上传本机；点击“开始复刻”后，灵矽会读取音频并消耗所选档位的复刻额度。训练可能需要数分钟。</p>
