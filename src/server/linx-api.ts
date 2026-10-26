@@ -1,13 +1,11 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import type { Config } from './store.js';
-import { dataDir, load, save } from './store.js';
+import { load, save, readBinary, writeBinary, deleteBinary } from './store.js';
 import type { Script } from '../core/script.js';
 import { bindingKey } from '../core/bindings.js';
 import { chooseVoices, voiceSchema, type Voice } from '../core/voices.js';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises';
-import { resolve } from 'node:path';
 
 const LINX_ORIGIN = 'https://xrobo.qiniu.com';
 const cloneId = z.string().regex(/^[a-zA-Z0-9_-]+$/);
@@ -30,7 +28,7 @@ function errorDetail(body: unknown): string {
 }
 
 /** Call the documented Linx envelope and return its `data` member. */
-export async function linxRequest(config: Config, path: string, method = 'GET', body?: unknown): Promise<any> {
+export async function linxRequest(config: Config, path: string, method = 'GET', body?: unknown, timeoutMs = 30000): Promise<any> {
   if (!config.linx.apiKey) throw new Error('请先填写灵矽平台 API Key');
   if (!path.startsWith('/') || path.startsWith('//')) throw new Error('灵矽 API 路径无效');
   let result: Response;
@@ -39,7 +37,7 @@ export async function linxRequest(config: Config, path: string, method = 'GET', 
       method,
       headers: { Authorization: `Bearer ${config.linx.apiKey}`, 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     throw new Error(`灵矽 API 请求失败：${error instanceof Error ? error.message : '网络错误'}`);
@@ -58,7 +56,7 @@ export async function linxRequest(config: Config, path: string, method = 'GET', 
   return payload.data;
 }
 
-type Sample = { id: string; token: string; expires: number; mime: string };
+type Sample = { id: string; token: string; expires: number; mime: string; cloneId?: string };
 
 function publicBase(base: string): string {
   if (!base) throw new Error('请先配置公网 HTTPS 地址，灵矽需要通过临时链接读取参考音频');
@@ -72,7 +70,7 @@ function sampleUrl(base: string, sample: Sample): string {
   return `${publicBase(base)}/voice-samples/${encodeURIComponent(sample.id)}/${encodeURIComponent(sample.token)}`;
 }
 
-function catalogVoices(data: unknown): Voice[] {
+export function catalogVoices(data: unknown): Voice[] {
   const list = Array.isArray(data)
     ? data
     : data && typeof data === 'object' && Array.isArray((data as any).voices)
@@ -96,16 +94,35 @@ export async function registerLinxApi(app: FastifyInstance, options: {
   scripts: () => Record<string, Script>;
 }) {
   const samples = await load<Record<string, Sample>>('voice-samples', {});
+  type Attempt={note:string;phase?:'submitting'|'accepted'|'uncertain';sampleId?:string;startedAt?:number};
+  const attempts = await load<Record<string, Attempt>>('voice-clone-attempts', {});
+  // Never replay a potentially charged PUT after a restart. GET reconciles it.
+  for(const attempt of Object.values(attempts))if(attempt.phase==='submitting'){
+    attempt.phase='uncertain';attempt.note='服务在提交期间重启，结果尚未确认。正在查询平台状态；不会自动重复扣减训练额度。';
+  }
+  let writes=Promise.resolve();
+  const persist=()=>{writes=writes.catch(()=>{}).then(()=>save('voice-clone-attempts',attempts));return writes;};
+  await persist();
+  const pending = new Set<string>();
+  const jobs=new Map<string,Promise<void>>();
+  const annotate = (voice: VoiceClone) => ({...voice,
+    submissionPhase: ['Training','Success'].includes(voice.state)?'accepted':attempts[voice.id]?.phase,
+    submissionNote: ['Init','Failed'].includes(voice.state) ? attempts[voice.id]?.note : undefined});
   const cleanup = async () => {
     for (const [id, sample] of Object.entries(samples)) {
-      if (sample.expires < Date.now()) {
+      if (sample.expires < Date.now()&&!jobs.has(sample.cloneId??'')) {
         delete samples[id];
-        await unlink(resolve(dataDir, 'voice-samples', id)).catch(() => undefined);
+        await deleteBinary(`voice-samples/${id}`).catch(() => undefined);
       }
     }
     await save('voice-samples', samples);
   };
   await cleanup();
+
+  app.get('/api/linx/samples/latest',async()=>{
+    const sample=Object.values(samples).filter(s=>s.expires>Date.now()).sort((a,b)=>b.expires-a.expires)[0];
+    return sample?{sampleId:sample.id,cloneId:sample.cloneId,url:sampleUrl(options.getConfig().linx.publicBaseUrl,sample),expiresAt:new Date(sample.expires).toISOString()}:null;
+  });
 
   app.get('/api/linx/voices', async () => catalogVoices(await linxRequest(options.getConfig(), '/v1/voices')));
 
@@ -137,11 +154,11 @@ export async function registerLinxApi(app: FastifyInstance, options: {
 
   app.get('/api/linx/clones', async () => {
     const data = await linxRequest(options.getConfig(), '/v1/voice-clones');
-    return { ...(data as Record<string, unknown>), voices: clones(data) };
+    return { ...(data as Record<string, unknown>), voices: clones(data).map(annotate) };
   });
   app.get('/api/linx/clones/:id', async (req) => {
     const { id } = z.object({ id: cloneId }).parse(req.params);
-    return cloneSchema.parse(await linxRequest(options.getConfig(), `/v1/voice-clones/${encodeURIComponent(id)}`));
+    return annotate(cloneSchema.parse(await linxRequest(options.getConfig(), `/v1/voice-clones/${encodeURIComponent(id)}`)));
   });
 
   app.post('/api/linx/samples', async (req) => {
@@ -161,8 +178,7 @@ export async function registerLinxApi(app: FastifyInstance, options: {
       expires: Date.now() + 60 * 60 * 1000,
       mime: ext === 'wav' ? 'audio/wav' : ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4',
     };
-    await mkdir(resolve(dataDir, 'voice-samples'), { recursive: true, mode: 0o700 });
-    await writeFile(resolve(dataDir, 'voice-samples', id), bytes, { mode: 0o600 });
+    await writeBinary(`voice-samples/${id}`, bytes);
     samples[id] = sample;
     await save('voice-samples', samples);
     return { sampleId: id, url: `${base}/voice-samples/${id}/${token}`, expiresAt: new Date(sample.expires).toISOString() };
@@ -172,9 +188,45 @@ export async function registerLinxApi(app: FastifyInstance, options: {
     const { id, token } = z.object({ id: z.string().uuid(), token: z.string().regex(/^[a-f0-9]{64}$/) }).parse(req.params);
     const sample = samples[id];
     if (!sample || sample.token !== token || sample.expires < Date.now()) return reply.code(404).send({ error: 'Not found' });
-    return reply.header('Cache-Control', 'no-store').type(sample.mime).send(await readFile(resolve(dataDir, 'voice-samples', sample.id)));
+    return reply.header('Cache-Control', 'no-store').type(sample.mime).send(await readBinary(`voice-samples/${sample.id}`));
   });
 
+  const train = async (config:Config, slot:VoiceClone, sample:Sample, name:string) => {
+    if(jobs.has(slot.id))return annotate(slot);
+    // Extend only this authorized submission's read window, never the audio's identity.
+    sample.expires=Math.max(sample.expires,Date.now()+10*60*1000);
+    await save('voice-samples',samples);
+    attempts[slot.id] = {phase:'submitting',sampleId:sample.id,startedAt:Date.now(),note:'正在向灵矽提交训练（最多等待 2 分钟）。可以离开或刷新页面，请勿重复提交。'};
+    await persist();
+    const job=(async()=>{
+      try {
+        const result = cloneSchema.parse(await linxRequest(config, `/v1/voice-clones/${encodeURIComponent(slot.id)}`, 'PUT', {name,key:sampleUrl(config.linx.publicBaseUrl,sample)},120000));
+        attempts[slot.id] = {...attempts[slot.id],phase:['Training','Success'].includes(result.state)?'accepted':'uncertain',note:result.state==='Init'?'平台仍返回待训练状态，尚不能使用该声音。请刷新确认后再重试。':''};
+      } catch (error) {
+        const detail=(error instanceof Error?error.message:'请求失败').replace(/https?:\/\/\S+/g,'[音频地址]').slice(0,240);
+        attempts[slot.id] = {...attempts[slot.id],phase:'uncertain',note:`训练提交未得到确认，已有音频和音色栏位已保留。请先刷新状态，勿重复创建。原因：${detail}`};
+      }
+      await persist();
+    })();
+    jobs.set(slot.id,job);
+    void job.catch(()=>{app.log.error('Failed to persist voice training result');}).finally(()=>jobs.delete(slot.id));
+    return annotate(slot);
+  };
+  app.post('/api/linx/clones/:id/train', async (req) => {
+    const {id}=z.object({id:cloneId}).parse(req.params);
+    const body=z.object({sampleId:z.string().uuid(),name:z.string().trim().min(1).max(20)}).parse(req.body);
+    const sample=samples[body.sampleId];
+    if(!sample||sample.expires<Date.now())throw new Error('音频链接已过期，请重新上传');
+    if(pending.has(id)||jobs.has(id))throw new Error('该音色正在提交训练，请勿重复点击');
+    pending.add(id);
+    try{
+      const config=options.getConfig();
+      const slot=cloneSchema.parse(await linxRequest(config,`/v1/voice-clones/${encodeURIComponent(id)}`));
+      if(!['Init','Failed'].includes(slot.state))return annotate(slot);
+      sample.cloneId=id;await save('voice-samples',samples);
+      return await train(config,slot,sample,body.name);
+    }finally{pending.delete(id);}
+  });
   app.post('/api/linx/clones', async (req) => {
     const body = z.object({
       sampleId: z.string().uuid(),
@@ -185,15 +237,15 @@ export async function registerLinxApi(app: FastifyInstance, options: {
     await cleanup();
     const sample = samples[body.sampleId];
     if (!sample || sample.expires < Date.now()) throw new Error('音频链接已过期，请重新上传');
-    const config = options.getConfig();
-    const slot = cloneSchema.parse(await linxRequest(config, '/v1/voice-clones', 'POST', { language: body.language, tier: body.tier }));
+    if(pending.has(sample.id))throw new Error('正在创建音色，请勿重复提交');
+    pending.add(sample.id);
     try {
-      return cloneSchema.parse(await linxRequest(config, `/v1/voice-clones/${encodeURIComponent(slot.id)}`, 'PUT', {
-        name: body.name,
-        key: sampleUrl(config.linx.publicBaseUrl, sample),
-      }));
-    } catch (error) {
-      throw new Error(`音色栏位 ${slot.id} 已创建，但训练未成功提交；请刷新音色列表后检查，避免重复创建。${error instanceof Error ? error.message : ''}`);
-    }
+      const config = options.getConfig();
+      if(sample.cloneId)return annotate(cloneSchema.parse(await linxRequest(config,`/v1/voice-clones/${encodeURIComponent(sample.cloneId)}`)));
+      const slot = cloneSchema.parse(await linxRequest(config, '/v1/voice-clones', 'POST', { language: body.language, tier: body.tier }));
+      sample.cloneId=slot.id;await save('voice-samples',samples);
+      pending.add(slot.id);
+      try{return await train(config,slot,sample,body.name);}finally{pending.delete(slot.id);}
+    }finally{pending.delete(sample.id);}
   });
 }

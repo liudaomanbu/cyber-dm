@@ -55,3 +55,32 @@ test('native Linx voice ids use listen text_response and do not require legacy T
   const listen=seen.find(x=>x.type==='listen'&&x.state==='detect');assert.equal(listen.text_response,'原生音色回复。');assert.equal(listen.agent_params.voice.id,'native-voice-123');
  }finally{ws?.close();for(const client of upstream.clients)client.terminate();await app.close();await new Promise<void>(r=>upstream.close(()=>r()));}
 });
+
+test('finishing a private recording preserves its target and in-flight reply; abort cancels the turn',async()=>{
+ const upstream=new WebSocketServer({port:0});await once(upstream,'listening');
+ const config=structuredClone(defaultConfig);Object.assign(config.linx,{wsUrl:`ws://127.0.0.1:${(upstream.address() as {port:number}).port}`,wsToken:'token',deviceId:'private-device',callbackToken:'callback'});
+ const seen:any[]=[];let upstreamSocket:WebSocket|undefined;
+ upstream.on('connection',ws=>{upstreamSocket=ws;ws.on('message',(data,binary)=>{if(binary)return;const msg=JSON.parse(data.toString());seen.push(msg);if(msg.type==='hello')ws.send(JSON.stringify({type:'hello',session_id:'private-linx',audio_params:{format:'pcm',sample_rate:16000}}));});});
+ let entered:()=>void=()=>{};let release:()=>void=()=>{};let current:()=>boolean=()=>false;const targets:(string|undefined)[]=[];
+ const app=Fastify();await registerVoice(app,{config:()=>config,hasSession:()=>true,voiceFor:()=>({voiceId:'private-voice'}),respond:async(_id,_text,isCurrent,target)=>{targets.push(target);current=isCurrent;entered();await new Promise<void>(r=>{release=r;});return [{speaker:'chen',text:'仅供私聊的已审核台词。'}];}});
+ await app.listen({host:'127.0.0.1',port:0});const port=(app.server.address() as {port:number}).port;
+ let browser:WebSocket|undefined;
+ const control=async(message:unknown)=>{const received=once(upstreamSocket!,'message');browser!.send(JSON.stringify(message));await received;await new Promise<void>(r=>setImmediate(r));};
+ const callback=(timestamp:number)=>app.inject({method:'POST',url:'/integrations/linx/chat/stream',headers:{authorization:'Bearer callback'},payload:{auth:{device_id:'private-device'},type:'chat',details:{session_id:'private-linx',msg:'询问私密线索',timestamp}}});
+ try{
+  const ticket=(await app.inject({method:'POST',url:'/api/voice/ticket',payload:{sessionId:'private-game'}})).json().ticket;
+  browser=new WebSocket(`ws://127.0.0.1:${port}/voice/socket?ticket=${ticket}`,{headers:{Origin:`http://127.0.0.1:${port}`}});await once(browser,'message');
+  await control({type:'start',target:'chen'});
+  const aborts=seen.filter(x=>x.type==='abort').length;
+  await control({type:'stop'});
+  assert.equal(seen.filter(x=>x.type==='abort').length,aborts,'ending capture must not abort recognition');
+  const began=new Promise<void>(r=>{entered=r;});const first=callback(1).then(r=>r);await began;
+  assert.deepEqual(targets,['chen']);assert(current());release();assert.equal((await first).statusCode,200);
+  await new Promise<void>(r=>setImmediate(r));assert.equal(seen.find(x=>x.text_response)?.agent_params.voice.id,'private-voice');
+  await control({type:'start',target:'dm'});
+  const beganAgain=new Promise<void>(r=>{entered=r;});const second=callback(2).then(r=>r);await beganAgain;
+  await control({type:'stop'});assert(current(),'normal stop must retain an already running reply');
+  await control({type:'abort'});assert(!current());release();await second;
+  assert.deepEqual(targets,['chen','dm']);await new Promise<void>(r=>setImmediate(r));assert.equal(seen.filter(x=>x.text_response).length,1,'aborted reply must never be spoken');
+ }finally{release();browser?.terminate();for(const c of upstream.clients)c.terminate();await app.close();await new Promise<void>(r=>upstream.close(()=>r()));}
+});

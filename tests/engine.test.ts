@@ -2,13 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseScript } from '../src/core/script.js';
-import { createSession,roleContext,playerSpeech,playerView,discover,advance,speak,vote } from '../src/core/engine.js';
+import { createSession,roleContext,playerSpeech,playerView,discover,advance,speak,vote,openPrivateRoom } from '../src/core/engine.js';
 const script=parseScript(JSON.parse(readFileSync('examples/after-hours.json','utf8')));
 test('private facts and conversations never enter unrelated role contexts or player view',()=>{
- const s=createSession(script,'lin');
+ const permitted=structuredClone(script);permitted.stages[0].privateChat={enabled:true,maxParticipants:3,durationSeconds:60,allowRefusal:true};
+ const s=createSession(permitted,'lin');
+ openPrivateRoom(s,permitted,['zhou']);
  assert(!JSON.stringify(roleContext(s,script,'chen')).includes('zhou_truth'));
  assert(!JSON.stringify(playerView(s,script)).includes('zhou_truth'));
- playerSpeech(s,script,'PRIVATE_SENTINEL','zhou');
+ playerSpeech(s,permitted,'PRIVATE_SENTINEL','zhou');
  assert(JSON.stringify(roleContext(s,script,'zhou')).includes('PRIVATE_SENTINEL'));
  assert(!JSON.stringify(roleContext(s,script,'chen')).includes('PRIVATE_SENTINEL'));
  assert(!JSON.stringify(roleContext(s,script,'dm')).includes('PRIVATE_SENTINEL'));
@@ -43,4 +45,13 @@ test('every selectable role can finish the entire short script without exposing 
 test('malformed script cannot sneak in dangling references or duplicate identities',()=>{
  const duplicate=structuredClone(script);duplicate.roles[1].id=duplicate.roles[0].id;assert.throws(()=>parseScript(duplicate));
  const bad=structuredClone(script);bad.clues[0].factId='invented';assert.throws(()=>parseScript(bad));
+});
+
+test('deferred sessions have no opening and core mutations wait for connection',()=>{
+ const s=createSession(script,'lin',{deferStart:true});
+ assert.equal(playerView(s,script).started,false);assert.deepEqual(s.events,[]);
+ assert.throws(()=>playerSpeech(s,script,'提前发言'));
+ assert.throws(()=>speak(s,script,'chen','chen_intro',s.version));
+ assert.throws(()=>advance(s,script));assert.throws(()=>discover(s,script,'door'));assert.throws(()=>vote(s,script,'lin','zhou'));
+ assert.equal(s.version,0);assert.deepEqual(s.events,[]);
 });

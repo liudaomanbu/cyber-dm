@@ -46,12 +46,13 @@ export function readiness(config: Config, scripts: Record<string, Script>): Read
     ['apiKey', '平台 API Key'], ['wsToken', 'WebSocket Token'], ['deviceId', '设备 ID'],
     ['clientId', '客户端 ID'], ['callbackToken', '业务回调 Token'],
   ];
+  if(linx.inputMode==='stt')fields.push(['speechDeviceId','播报设备 ID'],['speechWsToken','播报设备 Token']);
   const missingLinx = fields.filter(([key]) => !String(linx[key] ?? '').trim()).map(([, label]) => label);
   try {
     const url = new URL(linx.wsUrl);
     if (url.protocol !== 'wss:' && url.protocol !== 'ws:') missingLinx.push('WebSocket 地址');
   } catch { missingLinx.push('WebSocket 地址'); }
   items.push({ id: 'linx', label: '灵矽语音桥配置完整', ok: missingLinx.length === 0,
-    detail: missingLinx.length ? `缺少：${missingLinx.join('、')}` : '设备、回调和 WebSocket 参数已填写' });
+    detail: missingLinx.length ? `缺少：${missingLinx.join('、')}` : '接入字段已填写；实际录音、识别和播放仍需测试' });
   return { ready: items.every((item) => item.ok), items, scripts: entries.length, roles };
 }

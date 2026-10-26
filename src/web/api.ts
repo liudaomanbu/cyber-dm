@@ -7,5 +7,12 @@ export async function apiRequest(path:string,capability:string,options:RequestIn
   headers.set('Content-Type','application/json');
  }
  const r=await fetch('/api'+path,{...options,headers});
- const data=await r.json();if(!r.ok)throw new Error(data.error??'请求失败');return data;
+ const text=await r.text();
+ let data:any;
+ try{data=JSON.parse(text);}catch{
+  if([408,504,524].includes(r.status))throw new Error(`连接超时（HTTP ${r.status}），请稍后重试`);
+  throw new Error(`服务返回了非 JSON 响应（HTTP ${r.status}），请检查网络或隧道连接后重试`);
+ }
+ if(r.status===401&&data?.loginRequired)throw new Error('登录已失效，请刷新页面并重新输入访问口令。已上传的有效参考音频和训练进度会保留，无需重录。');
+ if(!r.ok)throw new Error(data?.error??`请求失败（HTTP ${r.status}）`);return data;
 }

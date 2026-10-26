@@ -6,7 +6,9 @@ export const scriptSchema = z.object({
   schemaVersion:z.literal(1), id, title:z.string().min(1), introduction:z.string().min(1),
   titleSource:source.optional(), introductionSource:source.optional(),
   roles:z.array(z.object({id,name:z.string().min(1),description:z.string(),voiceHint:z.string(),source:source.optional()})).min(2).max(12),
-  stages:z.array(z.object({id,title:z.string(),introduction:z.string(),kind:z.enum(['discussion','investigation','vote','reveal']),source:source.optional()})).min(2),
+  stages:z.array(z.object({id,title:z.string(),introduction:z.string(),kind:z.enum(['discussion','investigation','vote','reveal']),source:source.optional(),
+    privateChat:z.object({enabled:z.boolean(),maxParticipants:z.number().int().min(2).max(12),durationSeconds:z.number().int().positive(),allowRefusal:z.boolean().default(true)}).optional(),
+    flow:z.object({minPublicRounds:z.number().int().nonnegative().default(1),requiredClueIds:z.array(id).optional(),maxPublicRounds:z.number().int().positive().default(4)}).optional()})).min(2),
   facts:z.array(z.object({id,text:z.string().min(1),knownBy:z.array(id),unlockStage:id,source})),
   clues:z.array(z.object({id,title:z.string(),factId:id,unlockStage:id,discoverableBy:z.array(id),source:source.optional()})),
   utterances:z.array(z.object({id,roleId:id,stageIds:z.array(id).min(1),text:z.string().min(1),
@@ -28,13 +30,21 @@ export function parseScript(input:unknown):Script {
   if(s.stages.slice(0,-2).some(x=>['vote','reveal'].includes(x.kind)))throw new Error('投票和揭晓只能在终局出现');
   if(!s.stages.some(x=>x.kind==='investigation'))throw new Error('首版剧本至少需要一个搜证阶段');
   if(!s.clues.length)throw new Error('首版剧本至少需要一条可搜证线索');
+  for(const stage of s.stages){
+    if(stage.privateChat&&stage.privateChat.maxParticipants>s.roles.length)throw new Error('私聊人数超过角色数量');
+    if(stage.flow){
+      if(stage.flow.minPublicRounds>stage.flow.maxPublicRounds)throw new Error('公开讨论轮次范围无效');
+      for(const clueId of stage.flow.requiredClueIds??[])requireId(clueId,new Set(s.clues.map(c=>c.id)),'阶段必需线索');
+    }
+  }
   for(const f of s.facts){requireId(f.unlockStage,stages,'事实阶段');for(const r of f.knownBy)requireId(r,roles,'事实角色');}
   for(const c of s.clues){if(!facts.has(c.factId))throw new Error('线索引用不存在的事实');requireId(c.unlockStage,stages,'线索阶段');for(const r of c.discoverableBy)requireId(r,roles,'搜证角色');}
   for(const u of s.utterances){
     requireId(u.roleId,roles,'台词角色');for(const stage of u.stageIds)requireId(stage,stages,'台词阶段');
     for(const f of u.factIds)if(!facts.has(f))throw new Error('台词引用不存在的事实');
   }
-  for(const role of roles)if(!s.utterances.some(u=>u.roleId===role))throw new Error(`${role==='dm'?'主持人':role} 缺少经审核台词`);
+  // Runtime dialogue is generated from role knowledge; prewritten lines are optional references.
+
   requireId(s.solution.culpritRoleId,new Set(s.roles.map(x=>x.id)),'真相角色');
   for(const f of s.solution.factIds)if(!facts.has(f))throw new Error('结局引用不存在的事实');
   return s;

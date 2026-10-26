@@ -1,4 +1,6 @@
 # Replace both placeholders after `cloudflared tunnel create cyber-dm`.
+# This Mac's network stalls large uploads over QUIC; use HTTP/2 for the tunnel.
+protocol: http2
 tunnel: TUNNEL_UUID
 credentials-file: /ABSOLUTE/PATH/TO/TUNNEL_UUID.json
 ingress:

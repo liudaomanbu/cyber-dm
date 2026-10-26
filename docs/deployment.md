@@ -1,5 +1,18 @@
 # HTTPS 子域名部署
 
+## Cloudflare Workers 免费版（当前部署）
+
+当前版本已部署到 Cloudflare Workers，并通过现有路由 `cyber-dm.caotc.org/*` 提供服务。房间状态、配置、草稿、浏览器密钥和参考音频已迁移到 SQLite Durable Object；Worker 不依赖 Mac 文件系统。灵矽与模型凭据只作为 Cloudflare Secret 保存，仓库和公开响应不会包含它们。
+
+部署入口配置在 `wrangler.jsonc`。首次迁移使用本地忽略目录中的一次性迁移令牌调用 `/__migration/import`，成功后该入口拒绝再次迁移。后续发布只需：
+
+```sh
+npm run build
+npx wrangler deploy --keep-vars --secrets-file .data/worker-secrets.json
+```
+
+免费额度按 Cloudflare 账户计算：Workers 请求、Durable Objects 请求/活跃时长/SQLite 读写分别受限；模型和灵矽费用不包含在内。当前单真人实测公开开场通过，仍应监控长回合耗时和免费额度。若需要回退，删除 Worker route 后原来的 Cloudflare Tunnel DNS 和 Mac 服务仍可恢复。
+
 ## 当前方案：Mac + Cloudflare Tunnel
 
 用户已选择在当前 Mac 运行应用，由 Cloudflare Tunnel 提供 `https://cyber-dm.caotc.org`。不需要开放路由器入站端口；Mac 和应用、隧道进程必须保持运行，休眠会使站点不可用。
@@ -20,6 +33,8 @@ CYBER_DM_ACCESS_CODE=替换为至少16字符的随机口令
 6. 从公网验证 `/healthz` 返回成功，`/api/bootstrap` 未登录时返回 401，再通过首页登录。手机使用同一 HTTPS 域名。
 
 应用内部使用 HTTP，公网 TLS 由 Cloudflare 终止；WebSocket 自动通过隧道转发。不要使用 Host 覆盖来规避应用的来源校验。业务回调仍使用下面的固定 HTTPS 地址和独立回调 Token。隧道凭据与访问口令仅保存在本机忽略目录，不能提交仓库。
+
+当前 Mac 的网络上曾出现 QUIC 隧道上传大文件停滞，模板及本机配置已固定 `protocol: http2`（Cloudflare 边缘到隧道连接使用 HTTP/2）。切换后经公网验证 38 秒／3.65 MB 和 60 秒／5.76 MB WAV 上传成功；浏览器端仍使用 HTTPS，音色复刻不受传输协议选择影响。
 
 当前 Mac 已使用官方 `cloudflared` 2026.10.3 的 Intel Mac 二进制，保存在 `.data/bin/cloudflared`，下载后已与 GitHub Release 的 SHA-256 摘要核对。手动执行上面的登录、创建和 DNS 命令时，把 `cloudflared` 替换为 `.data/bin/cloudflared`；启动脚本会自动使用本地版本。访问口令保存在 `.data/deployment.env`，业务回调 Token 在 `.data/config.json`，均不要复制到公开文档中。
 

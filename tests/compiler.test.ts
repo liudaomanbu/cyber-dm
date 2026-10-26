@@ -25,7 +25,6 @@ test('UTF-8 text extraction keeps full document and rejects unsupported content'
  await assert.rejects(extractText('test.exe',Buffer.from(text)));
  await assert.rejects(extractText('test.txt',Buffer.from([0xff,0xfe])));
 });
-
 test('generated scripts are reviewable drafts and never treated as uploaded source', async () => {
  const original=globalThis.fetch;
  const script=JSON.parse(readFileSync('examples/after-hours.json','utf8'));
