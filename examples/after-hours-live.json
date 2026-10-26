@@ -1,0 +1,565 @@
+{
+  "schemaVersion": 1,
+  "id": "after-hours-live",
+  "title": "闭馆之后 · 即兴版",
+  "introduction": "一枚被调包的胸针，三位最后离馆的人。一个约十分钟的原创推理短本。",
+  "roles": [
+    {
+      "id": "lin",
+      "name": "林岚",
+      "description": "修复师，负责展品封装。你不喜欢被质疑专业。",
+      "voiceHint": "沉稳、清晰的成年女声"
+    },
+    {
+      "id": "zhou",
+      "name": "周启",
+      "description": "策展助理，熟悉展厅安排。说话克制而谨慎。",
+      "voiceHint": "温和、稍低的成年男声"
+    },
+    {
+      "id": "chen",
+      "name": "陈墨",
+      "description": "摄影师，闭馆前在侧厅整理器材。观察敏锐。",
+      "voiceHint": "明亮、利落的成年男声"
+    }
+  ],
+  "stages": [
+    {
+      "id": "opening",
+      "title": "闭馆之后",
+      "kind": "discussion",
+      "introduction": "今晚闭馆后，展柜中的星砂胸针被发现遭到调包。三位留在馆内的人，请先说明自己的行踪。",
+      "flow": {
+        "minPublicRounds": 1,
+        "maxPublicRounds": 3
+      }
+    },
+    {
+      "id": "search",
+      "title": "搜证与质询",
+      "kind": "investigation",
+      "introduction": "大家的陈述先到这里，我们开始搜证。可以查看展柜开锁记录、蓝色器材袋、修复室门禁和相机照片。这一阶段也允许两到三人私聊，每次两分钟，邀请可以拒绝。",
+      "privateChat": {
+        "enabled": true,
+        "maxParticipants": 3,
+        "durationSeconds": 120,
+        "allowRefusal": true
+      },
+      "flow": {
+        "minPublicRounds": 1,
+        "maxPublicRounds": 4,
+        "requiredClueIds": [
+          "door",
+          "bag",
+          "lin_log",
+          "photo"
+        ]
+      }
+    },
+    {
+      "id": "ballot",
+      "title": "最后的判断",
+      "kind": "vote",
+      "introduction": "请根据已经获得的线索，投票选择调包胸针的人。所有人提交后揭晓。"
+    },
+    {
+      "id": "ending",
+      "title": "真相回响",
+      "kind": "reveal",
+      "introduction": "投票已经结束，现在公开事件真相。"
+    }
+  ],
+  "facts": [
+    {
+      "id": "lin_where",
+      "text": "林岚在20:00至20:20一直在修复室，门禁记录可以证明。",
+      "knownBy": [
+        "lin"
+      ],
+      "unlockStage": "opening",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "lin_where",
+        "quote": "林岚在20:00至20:20一直在修复室，门禁记录可以证明。"
+      }
+    },
+    {
+      "id": "zhou_truth",
+      "text": "周启在20:10用备用钥匙打开展柜，将真胸针放入自己的蓝色器材袋。",
+      "knownBy": [
+        "zhou"
+      ],
+      "unlockStage": "opening",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "zhou_truth",
+        "quote": "周启在20:10用备用钥匙打开展柜，将真胸针放入自己的蓝色器材袋。"
+      }
+    },
+    {
+      "id": "chen_where",
+      "text": "陈墨在20:05至20:15在侧厅拍照，照片记录了他的位置。",
+      "knownBy": [
+        "chen"
+      ],
+      "unlockStage": "opening",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "chen_where",
+        "quote": "陈墨在20:05至20:15在侧厅拍照，照片记录了他的位置。"
+      }
+    },
+    {
+      "id": "door",
+      "text": "展柜在20:10被备用钥匙打开，备用钥匙当天由周启领取。",
+      "knownBy": [],
+      "unlockStage": "search",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "door",
+        "quote": "展柜在20:10被备用钥匙打开，备用钥匙当天由周启领取。"
+      }
+    },
+    {
+      "id": "bag",
+      "text": "周启的蓝色器材袋中发现真胸针，袋扣上的封条完整。",
+      "knownBy": [],
+      "unlockStage": "search",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "bag",
+        "quote": "周启的蓝色器材袋中发现真胸针，袋扣上的封条完整。"
+      }
+    },
+    {
+      "id": "lin_log",
+      "text": "修复室门禁显示林岚20:00进入、20:20离开。",
+      "knownBy": [],
+      "unlockStage": "search",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "lin_log",
+        "quote": "修复室门禁显示林岚20:00进入、20:20离开。"
+      }
+    },
+    {
+      "id": "photo",
+      "text": "陈墨相机内20:05至20:15的连续照片均拍摄于侧厅。",
+      "knownBy": [],
+      "unlockStage": "search",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "photo",
+        "quote": "陈墨相机内20:05至20:15的连续照片均拍摄于侧厅。"
+      }
+    }
+  ],
+  "clues": [
+    {
+      "id": "door",
+      "title": "展柜开锁记录",
+      "factId": "door",
+      "unlockStage": "search",
+      "discoverableBy": [
+        "lin",
+        "zhou",
+        "chen"
+      ]
+    },
+    {
+      "id": "bag",
+      "title": "蓝色器材袋",
+      "factId": "bag",
+      "unlockStage": "search",
+      "discoverableBy": [
+        "lin",
+        "zhou",
+        "chen"
+      ]
+    },
+    {
+      "id": "lin_log",
+      "title": "修复室门禁",
+      "factId": "lin_log",
+      "unlockStage": "search",
+      "discoverableBy": [
+        "lin",
+        "zhou",
+        "chen"
+      ]
+    },
+    {
+      "id": "photo",
+      "title": "相机照片",
+      "factId": "photo",
+      "unlockStage": "search",
+      "discoverableBy": [
+        "lin",
+        "zhou",
+        "chen"
+      ]
+    }
+  ],
+  "utterances": [
+    {
+      "id": "lin_intro",
+      "roleId": "lin",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "那段时间我一直在修复室，门禁记录应该能说明问题。",
+      "factIds": [
+        "lin_where"
+      ],
+      "audience": "public",
+      "kind": "statement",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "lin_intro",
+        "quote": "那段时间我一直在修复室，门禁记录应该能说明问题。"
+      }
+    },
+    {
+      "id": "zhou_intro",
+      "roleId": "zhou",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我负责协助布展。有什么问题，请具体问。",
+      "factIds": [],
+      "audience": "public",
+      "kind": "statement",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "zhou_intro",
+        "quote": "我负责协助布展。有什么问题，请具体问。"
+      }
+    },
+    {
+      "id": "zhou_lie",
+      "roleId": "zhou",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我没有拿走胸针。",
+      "factIds": [],
+      "audience": "public",
+      "kind": "scripted_lie",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "zhou_lie",
+        "quote": "我没有拿走胸针。"
+      }
+    },
+    {
+      "id": "chen_intro",
+      "roleId": "chen",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我在侧厅拍照。相机里有连续的时间记录。",
+      "factIds": [
+        "chen_where"
+      ],
+      "audience": "public",
+      "kind": "statement",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "chen_intro",
+        "quote": "我在侧厅拍照。相机里有连续的时间记录。"
+      }
+    },
+    {
+      "id": "lin_fallback",
+      "roleId": "lin",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我目前没有更多可以确认的信息。",
+      "factIds": [],
+      "audience": "public",
+      "kind": "fallback",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "lin_fallback",
+        "quote": "我目前没有更多可以确认的信息。"
+      }
+    },
+    {
+      "id": "lin_question",
+      "roleId": "lin",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我们先核对已经公开的线索，好吗？",
+      "factIds": [],
+      "audience": "public",
+      "kind": "question",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "lin_question",
+        "quote": "我们先核对已经公开的线索，好吗？"
+      }
+    },
+    {
+      "id": "lin_private",
+      "roleId": "lin",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "请提出具体的问题；我只能谈自己知道的事。",
+      "factIds": [],
+      "audience": "private",
+      "kind": "fallback",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "lin_private",
+        "quote": "请提出具体的问题；我只能谈自己知道的事。"
+      }
+    },
+    {
+      "id": "zhou_fallback",
+      "roleId": "zhou",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我目前没有更多可以确认的信息。",
+      "factIds": [],
+      "audience": "public",
+      "kind": "fallback",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "zhou_fallback",
+        "quote": "我目前没有更多可以确认的信息。"
+      }
+    },
+    {
+      "id": "zhou_question",
+      "roleId": "zhou",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我们先核对已经公开的线索，好吗？",
+      "factIds": [],
+      "audience": "public",
+      "kind": "question",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "zhou_question",
+        "quote": "我们先核对已经公开的线索，好吗？"
+      }
+    },
+    {
+      "id": "zhou_private",
+      "roleId": "zhou",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "请提出具体的问题；我只能谈自己知道的事。",
+      "factIds": [],
+      "audience": "private",
+      "kind": "fallback",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "zhou_private",
+        "quote": "请提出具体的问题；我只能谈自己知道的事。"
+      }
+    },
+    {
+      "id": "chen_fallback",
+      "roleId": "chen",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我目前没有更多可以确认的信息。",
+      "factIds": [],
+      "audience": "public",
+      "kind": "fallback",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "chen_fallback",
+        "quote": "我目前没有更多可以确认的信息。"
+      }
+    },
+    {
+      "id": "chen_question",
+      "roleId": "chen",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我们先核对已经公开的线索，好吗？",
+      "factIds": [],
+      "audience": "public",
+      "kind": "question",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "chen_question",
+        "quote": "我们先核对已经公开的线索，好吗？"
+      }
+    },
+    {
+      "id": "chen_private",
+      "roleId": "chen",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "请提出具体的问题；我只能谈自己知道的事。",
+      "factIds": [],
+      "audience": "private",
+      "kind": "fallback",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "chen_private",
+        "quote": "请提出具体的问题；我只能谈自己知道的事。"
+      }
+    },
+    {
+      "id": "dm_fallback",
+      "roleId": "dm",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我目前没有更多可以确认的信息。",
+      "factIds": [],
+      "audience": "public",
+      "kind": "fallback",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "dm_fallback",
+        "quote": "我目前没有更多可以确认的信息。"
+      }
+    },
+    {
+      "id": "dm_question",
+      "roleId": "dm",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "我们先核对已经公开的线索，好吗？",
+      "factIds": [],
+      "audience": "public",
+      "kind": "question",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "dm_question",
+        "quote": "我们先核对已经公开的线索，好吗？"
+      }
+    },
+    {
+      "id": "dm_private",
+      "roleId": "dm",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "请提出具体的问题；我只能谈自己知道的事。",
+      "factIds": [],
+      "audience": "private",
+      "kind": "fallback",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "dm_private",
+        "quote": "请提出具体的问题；我只能谈自己知道的事。"
+      }
+    },
+    {
+      "id": "dm_open",
+      "roleId": "dm",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "请各位陈述行踪，随后我们会进入搜证。",
+      "factIds": [],
+      "audience": "public",
+      "kind": "statement",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "dm_open",
+        "quote": "请各位陈述行踪，随后我们会进入搜证。"
+      }
+    },
+    {
+      "id": "lin_bag",
+      "roleId": "lin",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "袋中发现了真胸针，这条线索需要周启解释。",
+      "factIds": [
+        "bag"
+      ],
+      "audience": "public",
+      "kind": "statement",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "lin_bag",
+        "quote": "袋中发现了真胸针，这条线索需要周启解释。"
+      }
+    },
+    {
+      "id": "chen_key",
+      "roleId": "chen",
+      "stageIds": [
+        "opening",
+        "search",
+        "ballot"
+      ],
+      "text": "记录说明备用钥匙由周启领取，我们应该核对他的说法。",
+      "factIds": [
+        "door"
+      ],
+      "audience": "public",
+      "kind": "statement",
+      "source": {
+        "document": "原创短本：闭馆之后",
+        "locator": "chen_key",
+        "quote": "记录说明备用钥匙由周启领取，我们应该核对他的说法。"
+      }
+    }
+  ],
+  "solution": {
+    "culpritRoleId": "zhou",
+    "explanation": "调包者是周启。他在20:10用当天领取的备用钥匙打开展柜，将真胸针藏入自己的蓝色器材袋。开锁记录与袋中实物共同证明了这一点。林岚的门禁和陈墨的连续照片印证了二人的行踪。",
+    "factIds": [
+      "door",
+      "bag",
+      "lin_log",
+      "photo"
+    ]
+  }
+}

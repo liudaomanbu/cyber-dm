@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cyber-dm",
+  "main": "src/worker/index.ts",
+  "account_id": "7b2e1627fe86c0d1413b288f9145c967",
+  "compatibility_date": "2026-10-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [{"pattern": "cyber-dm.caotc.org/*", "zone_id": "63cbae24a73ff6d285754411e8680354"}],
+  "preview_urls": false,
+  "assets": {"directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*", "/voice/*", "/voice-samples/*", "/integrations/*", "/healthz", "/__migration/*"]},
+  "durable_objects": {"bindings": [{"name": "GAME", "class_name": "CyberGame"}]},
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["CyberGame"]}],
+  "alias": {
+    "fastify": "./src/worker/router.ts",
+    "@fastify/multipart": "./src/worker/plugin.ts",
+    "@fastify/websocket": "./src/worker/plugin.ts",
+    "ws": "./src/worker/socket.ts",
+    "opusscript": "./src/worker/opus.ts",
+    "pdf-parse": "./src/worker/pdf.ts"
+  },
+  "vars": {"CYBER_DM_PUBLIC_ORIGIN": "https://cyber-dm.caotc.org"}
+}
