@@ -80,6 +80,26 @@ export function ReferenceAudioInput({disabled, onBusy, onReset, onUpload}: Props
       if (generation.current === turn) {lock.current = false; onBusy(false);}
     }
   };
+  const uploadExisting = async (selected:File,turn:number) => {
+    setPhase('processing');setError('');
+    let context:AudioContext|undefined;
+    try {
+      const Ctx=window.AudioContext??(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;
+      if(!Ctx)throw new Error('当前浏览器不支持转换音频，请使用新版 Safari 或 Chrome');
+      context=new Ctx();
+      const decoded=await context.decodeAudioData(await selected.arrayBuffer());
+      if(turn!==generation.current)return;
+      if(decoded.duration<1)throw new Error('音频不足 1 秒，请提供清晰的 20–30 秒录音');
+      // Match microphone recordings: mono PCM, 24 kHz, at most 25 seconds.
+      const duration=Math.min(decoded.duration,25);
+      const renderer=new OfflineAudioContext(1,Math.ceil(duration*24000),24000);
+      const source=renderer.createBufferSource();source.buffer=decoded;source.connect(renderer.destination);source.start(0,0,duration);
+      const normalized=await renderer.startRendering();
+      if(turn!==generation.current)return;
+      await upload(new File([encodeReferenceWav([normalized.getChannelData(0)],24000)],'reference-upload.wav',{type:'audio/wav'}),turn);
+    }catch(e){if(turn===generation.current)cancel(`音频转换失败：${(e as Error).message}`);}
+    finally{if(context)await context.close().catch(()=>{});}
+  };
   const finish = () => {
     const current = capture.current;
     if (current.recorder?.state !== 'recording') return;
@@ -166,12 +186,12 @@ export function ReferenceAudioInput({disabled, onBusy, onReset, onUpload}: Props
     {error && <p role="alert" className="warning">{error}</p>}
     {preview && <audio aria-label="参考声音试听" controls src={preview} style={{width:'100%',marginBottom:12}}/>}
     {preview && file && <p><a className="button secondary" href={preview} download={file.name}>下载参考音频</a></p>}
-    <label>或上传已有音频文件<input type="file" accept=".wav,.mp3,.m4a" disabled={disabled || lock.current} onChange={event => {
+    <label>或上传已有音频文件（自动转为单声道 WAV，最多保留前 25 秒）<input type="file" accept=".wav,.mp3,.m4a" disabled={disabled || lock.current} onChange={event => {
       const selected = event.target.files?.[0]; event.target.value = '';
       if (!selected || lock.current) return;
       if (selected.size > 15 * 1024 * 1024) {setError('音频文件不能超过 15 MB'); return;}
       lock.current = true; onBusy(true); onReset(); clearPreview();
-      void upload(selected, ++generation.current);
+      void uploadExisting(selected, ++generation.current);
     }}/></label>
   </div>;
 }

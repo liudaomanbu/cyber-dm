@@ -87,3 +87,23 @@ test('snapshot imports JSON, migration marker and binary in one transaction and 
   assert.deepEqual(await backend.readBinary('second'),new Uint8Array([3]));
  }finally{db.close();}
 });
+
+
+test('binary Buffer uploads preserve exact bytes and never persist backing pools or duplicate chunks',async()=>{
+ const {db,storage}=database();try{
+  const backend=new WorkersSqliteStorage(storage);
+  for(const size of [1024,65536,65537,1075456]){
+   const backing=Buffer.alloc(size+128,0xee);
+   const upload=backing.subarray(64,64+size);
+   for(let i=0;i<upload.length;i++)upload[i]=i%251;
+   await backend.writeBinary('upload',upload);
+   const restored=await backend.readBinary('upload');
+   assert.equal(restored.byteLength,upload.byteLength);
+   assert.deepEqual(Buffer.from(restored),upload);
+   assert.ok(Number(db.prepare('SELECT MAX(length(data)) AS size FROM app_storage_chunks').get()?.size)<=65536);
+  }
+  const snapshotBuffer=Buffer.from([1,2,3,4]);
+  backend.importSnapshot({}, {'snapshot':snapshotBuffer.subarray(1,3)});
+  assert.deepEqual(await backend.readBinary('snapshot'),new Uint8Array([2,3]));
+ }finally{db.close();}
+});

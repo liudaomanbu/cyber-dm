@@ -1,13 +1,14 @@
 import type { Script } from '../core/script.js';
 import { bindingKey } from '../core/bindings.js';
 import type { Config } from './store.js';
+import {selectableScripts} from './script-library.js';
 
 export type ReadinessItem = { id: string; label: string; ok: boolean; detail: string };
 export type ReadinessReport = { ready: boolean; items: ReadinessItem[]; scripts: number; roles: number };
 
 /** Return a secret-free checklist for the minimum real voice-game setup. */
 export function readiness(config: Config, scripts: Record<string, Script>): ReadinessReport {
-  const entries = Object.values(scripts);
+  const entries = selectableScripts(scripts);
   const roles = entries.reduce((count, script) => count + script.roles.length + 1, 0);
   const items: ReadinessItem[] = [];
   items.push({ id: 'scripts', label: '至少有一个可玩剧本', ok: entries.length > 0,
