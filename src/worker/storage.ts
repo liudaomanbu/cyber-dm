@@ -28,7 +28,9 @@ export class WorkersSqliteStorage implements StorageBackend {
   this.storage.sql.exec('DELETE FROM app_storage_chunks WHERE kind = ? AND key = ?',kind,key);
   // An empty BLOB distinguishes an existing empty file from a missing file.
   for(let offset=0;offset<Math.max(1,bytes.byteLength);offset+=CHUNK_BYTES){
-   const chunk=bytes.slice(offset,offset+CHUNK_BYTES);
+   // Buffer.slice() is a view: its .buffer may contain the entire upload
+   // (or unrelated pooled bytes). Copy precisely this range into an owned array.
+   const chunk=new Uint8Array(bytes.subarray(offset,offset+CHUNK_BYTES));
    if(chunk.byteLength===0)this.storage.sql.exec('INSERT INTO app_storage_chunks (kind, key, chunk, data) VALUES (?, ?, ?, zeroblob(0))',kind,key,0);
    else this.storage.sql.exec('INSERT INTO app_storage_chunks (kind, key, chunk, data) VALUES (?, ?, ?, ?)',kind,key,offset/CHUNK_BYTES,chunk.buffer as ArrayBuffer);
   }

@@ -56,7 +56,7 @@ export async function linxRequest(config: Config, path: string, method = 'GET', 
   return payload.data;
 }
 
-type Sample = { id: string; token: string; expires: number; mime: string; cloneId?: string };
+type Sample = { id: string; token: string; expires: number; mime: string; cloneId?: string; lastReadAt?:number; lastReadMethod?:string; readCount?:number };
 
 function publicBase(base: string): string {
   if (!base) throw new Error('请先配置公网 HTTPS 地址，灵矽需要通过临时链接读取参考音频');
@@ -67,7 +67,7 @@ function publicBase(base: string): string {
 }
 
 function sampleUrl(base: string, sample: Sample): string {
-  return `${publicBase(base)}/voice-samples/${encodeURIComponent(sample.id)}/${encodeURIComponent(sample.token)}`;
+  return `${publicBase(base)}/voice-samples/${encodeURIComponent(sample.id)}/${encodeURIComponent(sample.token)}/reference.${sample.mime==='audio/wav'?'wav':sample.mime==='audio/mpeg'?'mp3':'m4a'}`;
 }
 
 export function catalogVoices(data: unknown): Voice[] {
@@ -106,6 +106,7 @@ export async function registerLinxApi(app: FastifyInstance, options: {
   const pending = new Set<string>();
   const jobs=new Map<string,Promise<void>>();
   const annotate = (voice: VoiceClone) => ({...voice,
+    sampleRead: attempts[voice.id]?.sampleId ? (()=>{const s=samples[attempts[voice.id].sampleId!];return s?{lastReadAt:s.lastReadAt,lastReadMethod:s.lastReadMethod,readCount:s.readCount??0}:undefined;})() : undefined,
     submissionPhase: ['Training','Success'].includes(voice.state)?'accepted':attempts[voice.id]?.phase,
     submissionNote: ['Init','Failed'].includes(voice.state) ? attempts[voice.id]?.note : undefined});
   const cleanup = async () => {
@@ -181,15 +182,33 @@ export async function registerLinxApi(app: FastifyInstance, options: {
     await writeBinary(`voice-samples/${id}`, bytes);
     samples[id] = sample;
     await save('voice-samples', samples);
-    return { sampleId: id, url: `${base}/voice-samples/${id}/${token}`, expiresAt: new Date(sample.expires).toISOString() };
+    return { sampleId: id, url: sampleUrl(base,sample), expiresAt: new Date(sample.expires).toISOString() };
   });
 
-  app.get('/voice-samples/:id/:token', async (req, reply) => {
+  const serveSample: import('fastify').RouteHandlerMethod = async (req, reply) => {
     const { id, token } = z.object({ id: z.string().uuid(), token: z.string().regex(/^[a-f0-9]{64}$/) }).parse(req.params);
     const sample = samples[id];
     if (!sample || sample.token !== token || sample.expires < Date.now()) return reply.code(404).send({ error: 'Not found' });
-    return reply.header('Cache-Control', 'no-store').type(sample.mime).send(await readBinary(`voice-samples/${sample.id}`));
-  });
+    const bytes=await readBinary(`voice-samples/${sample.id}`);
+    reply.header('Cache-Control','no-store').header('Accept-Ranges','bytes').type(sample.mime);
+    // Some media downloaders probe metadata before downloading the audio.
+    if(req.method==='HEAD')return reply.header('Content-Length',String(bytes.length)).send(bytes);
+    const range=req.headers.range;
+    let start=0,end=bytes.length-1;
+    if(range){
+      const match=/^bytes=(\d*)-(\d*)$/.exec(range);
+      if(!match||(!match[1]&&!match[2]))return reply.code(416).header('Content-Range',`bytes */${bytes.length}`).send();
+      if(!match[1])start=Math.max(0,bytes.length-Number(match[2]));
+      else{start=Number(match[1]);if(match[2])end=Math.min(end,Number(match[2]));}
+      if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start>end||start>=bytes.length)return reply.code(416).header('Content-Range',`bytes */${bytes.length}`).send();
+      reply.code(206).header('Content-Range',`bytes ${start}-${end}/${bytes.length}`);
+    }
+    sample.lastReadAt=Date.now();sample.lastReadMethod=range?'GET range':'GET';sample.readCount=(sample.readCount??0)+1;
+    await save('voice-samples',samples);
+    return reply.header('Content-Length',String(end-start+1)).send(bytes.subarray(start,end+1));
+  };
+  app.get('/voice-samples/:id/:token',serveSample);
+  app.get('/voice-samples/:id/:token/:filename',serveSample);
 
   const train = async (config:Config, slot:VoiceClone, sample:Sample, name:string) => {
     if(jobs.has(slot.id))return annotate(slot);

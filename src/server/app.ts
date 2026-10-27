@@ -16,6 +16,7 @@ import type { registerVoice } from './voice.js';
 import sampleJson from '../../examples/after-hours.json';
 import liveSampleJson from '../../examples/after-hours-live.json';
 import { readiness } from './readiness.js';
+import {selectableScripts} from './script-library.js';
 import {registerScriptPackages} from './script-packages.js';
 
 export type VoiceOptions=Parameters<typeof registerVoice>[1];
@@ -66,9 +67,8 @@ app.post('/api/providers/:id/test',async req=>{
  const p=config.providers.find(p=>p.id===(req.params as any).id);if(!p)throw new game.RuleError('服务配置不存在');
  const r=await generate(p,'仅回复 OK。','连接测试');return {ok:true,text:r.text,usage:r.usage};
 });
-app.get('/api/scripts',async()=>Object.values(scripts)
- .filter(s=>s.id!=='after-hours')
- .map(s=>s.id==='after-hours-live'?{id:s.id,title:'闭馆之后',introduction:s.introduction,roles:s.roles}:{id:s.id,title:s.title,introduction:s.introduction,roles:s.roles}));
+app.get('/api/scripts',async()=>selectableScripts(scripts)
+ .map(s=>({id:s.id,title:s.title,introduction:s.introduction,roles:s.roles})));
 app.post('/api/scripts/import',async req=>{
  const part=await req.file();if(!part)throw new game.RuleError('请选择剧本文件');
  const bytes=await part.toBuffer();

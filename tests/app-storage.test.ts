@@ -54,3 +54,25 @@ test('factory preserves browser guards and persists sessions through application
   assert.equal(sessions[0].roleId,scripts[0].roles[0].id);
  }finally{await instance.app.close();}
 });
+
+test('library and readiness count the same selectable scripts while retaining legacy sessions',async()=>{
+ const backend=memoryStorage();
+ const instance=await runWithStorage(backend,()=>createApp({fastifyOptions:{logger:false}}));
+ try{
+  const bootstrap=await runWithStorage(backend,()=>instance.app.inject('/api/bootstrap'));
+  const headers={'x-cyber-key':bootstrap.json().key};
+  const get=(url:string)=>runWithStorage(backend,()=>instance.app.inject({url,headers}));
+  const library=(await get('/api/scripts')).json();
+  assert.equal(library.length,1);assert.equal(library[0].title,'闭馆之后');
+  assert.ok(instance.scripts['after-hours'],'legacy source retained for old rooms');
+  const report=(await get('/api/readiness')).json();
+  assert.equal(report.scripts,library.length);assert.equal(report.roles,4);
+  // An unconfigured hidden script must not add invisible missing bindings.
+  assert.ok(!report.items.some((item:any)=>item.detail.includes('after-hours/')));
+  instance.scripts['another-script']={...structuredClone(instance.scripts['after-hours-live']),id:'another-script',title:'另一个剧本'};
+  const multiple=(await get('/api/scripts')).json();
+  const multiReport=(await get('/api/readiness')).json();
+  assert.equal(multiple.length,2);assert.equal(multiReport.scripts,2);assert.equal(multiReport.roles,8);
+  assert.ok(multiple.some((script:any)=>script.id==='another-script'));
+ }finally{await instance.app.close();}
+});

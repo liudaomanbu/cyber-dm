@@ -30,7 +30,8 @@ export default function createRouter(options:{bodyLimit?:number}={}) {
    const reply=new Reply();
    let params:Record<string,string>={};
    const route=routes.find(r=>{
-    if(r.method!==(input.method??'GET').toUpperCase())return false;
+    const method=(input.method??'GET').toUpperCase();
+    if(r.method!==method&&!(method==='HEAD'&&r.method==='GET'))return false;
     const pattern=r.path.split('/'),actual=url.pathname.split('/');if(pattern.length!==actual.length)return false;
     const values:Record<string,string>={};
     for(let i=0;i<pattern.length;i++){
@@ -76,7 +77,8 @@ export default function createRouter(options:{bodyLimit?:number}={}) {
    const value=reply.value;
    const rawPayload=value===undefined?Buffer.alloc(0):Buffer.isBuffer(value)?value:typeof value==='string'?Buffer.from(value):Buffer.from(JSON.stringify(value));
    if(!reply.headers['content-type'])reply.type(Buffer.isBuffer(value)?'application/octet-stream':typeof value==='string'?'text/plain; charset=utf-8':'application/json; charset=utf-8');
-   return {statusCode:reply.statusCode,headers:reply.headers,rawPayload,payload:rawPayload.toString(),json:()=>JSON.parse(rawPayload.toString())};
+   const output=(input.method??'GET').toUpperCase()==='HEAD'?Buffer.alloc(0):rawPayload;
+   return {statusCode:reply.statusCode,headers:reply.headers,rawPayload:output,payload:output.toString(),json:()=>JSON.parse(output.toString())};
   },
  };
  for(const method of ['GET','POST','PUT','DELETE'])app[method.toLowerCase()]=(path:string,...args:any[])=>{routes.push({method,path,handler:args.at(-1)});return app;};
