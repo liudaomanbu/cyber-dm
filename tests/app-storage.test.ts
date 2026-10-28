@@ -55,7 +55,7 @@ test('factory preserves browser guards and persists sessions through application
  }finally{await instance.app.close();}
 });
 
-test('library and readiness count the same selectable scripts while retaining legacy sessions',async()=>{
+test('library and readiness count the same selectable scripts without retaining the retired built-in',async()=>{
  const backend=memoryStorage();
  const instance=await runWithStorage(backend,()=>createApp({fastifyOptions:{logger:false}}));
  try{
@@ -64,7 +64,7 @@ test('library and readiness count the same selectable scripts while retaining le
   const get=(url:string)=>runWithStorage(backend,()=>instance.app.inject({url,headers}));
   const library=(await get('/api/scripts')).json();
   assert.equal(library.length,1);assert.equal(library[0].title,'闭馆之后');
-  assert.ok(instance.scripts['after-hours'],'legacy source retained for old rooms');
+  assert.equal(instance.scripts['after-hours'],undefined);
   const report=(await get('/api/readiness')).json();
   assert.equal(report.scripts,library.length);assert.equal(report.roles,4);
   // An unconfigured hidden script must not add invisible missing bindings.
@@ -75,4 +75,37 @@ test('library and readiness count the same selectable scripts while retaining le
   assert.equal(multiple.length,2);assert.equal(multiReport.scripts,2);assert.equal(multiReport.roles,8);
   assert.ok(multiple.some((script:any)=>script.id==='another-script'));
  }finally{await instance.app.close();}
+});
+test('retirement removes only old built-in rooms and bindings and is idempotent',async()=>{
+ const backend=memoryStorage();
+ const {defaultConfig}=await import('../src/server/store.js');
+ const {bindingKey}=await import('../src/core/bindings.js');
+ const {createSession}=await import('../src/core/engine.js');
+ const {parseScript}=await import('../src/core/script.js');
+ const {readFileSync}=await import('node:fs');
+ const old=parseScript(JSON.parse(readFileSync('examples/after-hours.json','utf8')));
+ const live=parseScript(JSON.parse(readFileSync('examples/after-hours-live.json','utf8')));
+ const custom={...structuredClone(live),id:'user-script'};
+ const rooms=[old,live,custom].map(script=>createSession(script,'lin',{deferStart:true}));
+ const config=structuredClone(defaultConfig);
+ config.roleModels[bindingKey(old.id,'dm')]='old-model';
+ config.roleModels[bindingKey(live.id,'dm')]='current-model';
+ config.roleModels.lin='unscoped-model';
+ config.roleVoices[bindingKey(old.id,'dm')]={voiceId:'keep-voice',provider:'',voiceType:''};
+ await runWithStorage(backend,async()=>{
+  await save('scripts',Object.fromEntries([old,live,custom].map(s=>[s.id,s])));
+  await save('sessions',Object.fromEntries(rooms.map(s=>[s.id,s])));await save('config',config);
+ });
+ for(let i=0;i<2;i++){
+  const instance=await runWithStorage(backend,()=>createApp({fastifyOptions:{logger:false}}));
+  try{
+   assert.deepEqual(Object.keys(instance.sessions).sort(),rooms.slice(1).map(s=>s.id).sort());
+   assert.equal(instance.scripts[old.id],undefined);assert.ok(instance.scripts[custom.id]);
+   const actual=instance.getConfig();assert.equal(actual.roleModels[bindingKey(live.id,'dm')],'current-model');
+   assert.equal(actual.roleModels[bindingKey(live.id,'lin')],'unscoped-model');
+   assert.equal(actual.roleVoices[bindingKey(live.id,'dm')].voiceId,'keep-voice');
+   assert.equal(actual.roleModels[bindingKey(old.id,'dm')],undefined);assert.equal(actual.roleModels.lin,undefined);
+  }finally{await instance.app.close();}
+ }
+ const persisted=await backend.load<Record<string,unknown>>('sessions',{});assert.equal(persisted[rooms[0].id],undefined);
 });
