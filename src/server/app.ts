@@ -34,14 +34,24 @@ await app.register(multipart,{limits:{fileSize:15*1024*1024,files:1}});
 let config= configSchema.parse(await load('config',defaultConfig));
 if(!config.linx.clientId)config.linx.clientId=randomUUID();
 const sample=parseScript(sampleJson);
-const scripts=await load<Record<string,Script>>('scripts',{[sample.id]:sample});
+const scripts=await load<Record<string,Script>>('scripts',{});
 const liveSample=parseScript(liveSampleJson);
+liveSample.title='闭馆之后';
 if(!scripts[liveSample.id]){scripts[liveSample.id]=liveSample;await save('scripts',scripts);}
-for(const map of [config.roleModels,config.roleVoices])for(const role of ['dm',...sample.roles.map(r=>r.id)]){const from=bindingKey(sample.id,role),to=bindingKey(liveSample.id,role);if(map[to]===undefined&&map[from]!==undefined)map[to]=map[from] as never;}
+if(scripts[liveSample.id].title==='闭馆之后 · 即兴版'){scripts[liveSample.id].title=liveSample.title;await save('scripts',scripts);}
 const sessions=await load<Record<string,game.Session>>('sessions',{});
 const drafts=await load<Record<string,Draft>>('drafts',{});
-// One-time migration of legacy unscoped bindings applies only to the built-in script.
-for(const map of [config.roleModels,config.roleVoices])for(const role of ['dm',...sample.roles.map(r=>r.id)])if(map[role]!==undefined){map[bindingKey(sample.id,role)]=map[role] as never;delete map[role];}
+// Retire the superseded built-in and its rooms. Preserve the current version's
+// bindings, copying old values only where the current role is unconfigured.
+for(const map of [config.roleModels,config.roleVoices])for(const role of ['dm',...sample.roles.map(r=>r.id)]){
+ const from=bindingKey(sample.id,role),to=bindingKey(liveSample.id,role);
+ if(map[to]===undefined&&(map[from]??map[role])!==undefined)map[to]=(map[from]??map[role]) as never;
+ delete map[from];delete map[role];
+}
+let removedRooms=false;
+for(const [id,session] of Object.entries(sessions))if(session.scriptId===sample.id){delete sessions[id];removedRooms=true;}
+if(removedRooms)await save('sessions',sessions);
+if(scripts[sample.id]){delete scripts[sample.id];await save('scripts',scripts);}
 await save('config',config);
 const key=await load('browser-key',{value:randomBytes(32).toString('hex')});await save('browser-key',key);
 // Same-origin browser capability protects the locally configured API from cross-site requests.

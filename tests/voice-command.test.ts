@@ -36,3 +36,24 @@ test('search requires a full clue title and advancing remains a proposal',()=>{
  assert.throws(()=>parseVoiceCommand('搜查不存在的线索',script));
  assert.deepEqual(parseVoiceCommand('进入下一阶段',script),{kind:'proposal',action:{kind:'advance'},description:'请求进入下一阶段'});
 });
+test('ASR homophones resolve full names and titles but votes remain proposals',()=>{
+ assert.deepEqual(parseVoiceCommand('我想和沉默私聊。',script),{kind:'private_invite',participants:['chen']});
+ const vote=parseVoiceCommand('我投周琦。',script);
+ assert.deepEqual(vote,{kind:'proposal',action:{kind:'vote',target:'zhou'},description:'投票给周启'});
+ assert.deepEqual(parseVoiceCommand('我头周起。',script),vote);
+ assert.deepEqual(parseVoiceCommand('我头票给周起。',script),vote);
+ const search=parseVoiceCommand('搜查蓝色器材带。',script);
+ assert.deepEqual(search,{kind:'proposal',action:{kind:'discover',target:'bag'},description:'搜查“蓝色器材袋”'});
+ for(const text of ['我投周','我投zhouqi','我投周琦但是不确定','搜查器材袋','邀请沉默、陈墨私聊'])assert.throws(()=>parseVoiceCommand(text,script),text);
+ for(const text of ['我不投周琦','我投周琦吗','他说我投周琦','“我投周琦”'])assert.equal(parseVoiceCommand(text,script).kind,'speech',text);
+ assert.equal(parseVoiceCommand('确任投票',script).kind,'speech');
+});
+test('ambiguous homophones cannot silently choose a role or clue, including exact ASR spelling',()=>{
+ const ambiguous=structuredClone(script);ambiguous.roles[0].name='沉默';
+ for(const name of ['陈墨','沉默','陈莫']){
+  assert.throws(()=>parseVoiceCommand('我投'+name,ambiguous));
+  assert.throws(()=>parseVoiceCommand('邀请'+name+'私聊',ambiguous));
+ }
+ ambiguous.clues.push({...ambiguous.clues[0],id:'bag2',title:'蓝色器材带'});
+ assert.throws(()=>parseVoiceCommand('搜查蓝色器材袋',ambiguous));
+});

@@ -90,6 +90,14 @@ test('voice vote proposal makes no ballot until confirmation, then all NPCs vote
  await f.service.voice(f.s.id,'确认投票',()=>true);assert.equal(f.state().status,'finished');assert.deepEqual(f.ballots,['zhou','chen']);assert.equal(Object.keys(f.state().votes).length,3);
  assert.equal(f.state().events.filter(e=>e.kind==='vote').length,3);
 });
+test('confirmed NPC ballots are generated concurrently but committed in role order',async()=>{
+ const f=fixture();f.voting();let active=0;let peak=0;
+ const deps=(f.service as any).deps;
+ deps.ballot=async(_p:any,ctx:any)=>{active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,10));active--;return {action:{target:ctx.role?.id==='zhou'?'zhou':'chen'}};};
+ const replies=await f.service.voice(f.s.id,'我投周启',()=>true);assert.equal(replies[0].speaker,'dm');
+ const finished=await f.service.voice(f.s.id,'确认投票',()=>true);
+ assert.equal(peak,2);assert.equal(f.state().status,'finished');assert.deepEqual(Object.keys(f.state().votes),['lin','zhou','chen']);assert.equal(finished.at(-1)?.speaker,'dm');
+});
 test('confirmation expires exactly at deadline without recording a ballot',async()=>{
  const f=fixture();f.voting();await f.service.voice(f.s.id,'我投周启',()=>true);f.control.now=60000;
  await assert.rejects(f.service.voice(f.s.id,'确认',()=>true));assert.deepEqual(f.state().votes,{});assert.deepEqual(f.ballots,[]);

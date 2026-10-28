@@ -13,7 +13,7 @@ npx wrangler deploy --keep-vars --secrets-file .data/worker-secrets.json
 
 免费额度按 Cloudflare 账户计算：Workers 请求、Durable Objects 请求/活跃时长/SQLite 读写分别受限；模型和灵矽费用不包含在内。当前单真人实测公开开场通过，仍应监控长回合耗时和免费额度。若需要回退，删除 Worker route 后原来的 Cloudflare Tunnel DNS 和 Mac 服务仍可恢复。
 
-## 当前方案：Mac + Cloudflare Tunnel
+## 历史回退方案：Mac + Cloudflare Tunnel
 
 用户已选择在当前 Mac 运行应用，由 Cloudflare Tunnel 提供 `https://cyber-dm.caotc.org`。不需要开放路由器入站端口；Mac 和应用、隧道进程必须保持运行，休眠会使站点不可用。
 
