@@ -40,7 +40,10 @@ export function parseVoiceCommand(text:string,script:Script):ParsedVoice{
   const clue=matches[0];
   return {kind:'proposal',action:{kind:'discover',target:clue.id},description:`搜查“${clue.title}”`};
  }
- const vote=command.match(/^(?:我投票给|我投|我选|投票)\s*(.+)$/);
+ // ASR commonly turns 投/投票 into the homophone 头/头票. Keep the
+ // accepted prefix list narrow: the target still must be one unique full role
+ // name (or its full-name homophone), so ordinary speech cannot become a vote.
+ const vote=command.match(/^(?:我投票给|我投|我选|我头票给|我头|投票)\s*(.+)$/);
  if(vote){
   const matches=spokenMatches(vote[1].trim(),script.roles,r=>r.name);
   if(matches.length!==1)throw new RuleError('请说“我投票给”加角色全名');

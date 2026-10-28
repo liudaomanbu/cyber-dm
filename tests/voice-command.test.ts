@@ -40,6 +40,8 @@ test('ASR homophones resolve full names and titles but votes remain proposals',(
  assert.deepEqual(parseVoiceCommand('我想和沉默私聊。',script),{kind:'private_invite',participants:['chen']});
  const vote=parseVoiceCommand('我投周琦。',script);
  assert.deepEqual(vote,{kind:'proposal',action:{kind:'vote',target:'zhou'},description:'投票给周启'});
+ assert.deepEqual(parseVoiceCommand('我头周起。',script),vote);
+ assert.deepEqual(parseVoiceCommand('我头票给周起。',script),vote);
  const search=parseVoiceCommand('搜查蓝色器材带。',script);
  assert.deepEqual(search,{kind:'proposal',action:{kind:'discover',target:'bag'},description:'搜查“蓝色器材袋”'});
  for(const text of ['我投周','我投zhouqi','我投周琦但是不确定','搜查器材袋','邀请沉默、陈墨私聊'])assert.throws(()=>parseVoiceCommand(text,script),text);

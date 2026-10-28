@@ -165,10 +165,16 @@ export class GameService{
    const pending=this.pending.get(id);this.pending.delete(id);
    if(!pending||pending.expires<=this.now()||pending.version!==s.version||pending.action.kind!=='vote')throw new game.RuleError('目前没有待确认的投票，请先说“我投”加角色名');
    game.vote(s,script,s.playerRoleId,pending.action.target!);
-   for(const role of script.roles.filter(r=>r.id!==s.playerRoleId)){
-    const result=await (this.deps.ballot??selectVote)(this.provider(script,role.id,c),game.roleContext(s,script,role.id),script.roles.map(r=>r.id));
-    if(!current())throw new game.RuleError('本轮已取消');game.vote(s,script,role.id,result.action.target);
-   }
+   const npcRoles=script.roles.filter(r=>r.id!==s.playerRoleId);
+   // NPC ballots are independent: each sees the same public state after the
+   // player's confirmed ballot. Generate them concurrently, then commit in
+   // stable role order so event and vote ordering remain deterministic. No vote
+   // is written until every model result has returned and the round is current.
+   const results=await Promise.all(npcRoles.map(role=>(this.deps.ballot??selectVote)(
+    this.provider(script,role.id,c),game.roleContext(s,script,role.id),script.roles.map(r=>r.id),
+   )));
+   if(!current())throw new game.RuleError('本轮已取消');
+   results.forEach((result,index)=>game.vote(s,script,npcRoles[index].id,result.action.target));
    // Voting is complete; the host reveals only after every ballot is submitted.
    game.advance(s,script);
   }else{this.pending.delete(id);await this.discuss(s,script,text,c,current);}
